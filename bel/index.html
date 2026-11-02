@@ -128,16 +128,12 @@ main{width:100%;max-width:440px;text-align:center}
   var url = '../go.php?vid=' + encodeURIComponent(vid) + '&src=' + encodeURIComponent(src) +
             '&cmp=' + encodeURIComponent(cmp) + (mg ? '&m=' + encodeURIComponent(mg) : '');
 
-  // Батырма, сурет — бәрі WhatsApp-қа апарады
-  var busy = false, links = document.querySelectorAll('.js-wa');
-  function go(e) {
-    e.preventDefault();
-    if (busy) return;
-    busy = true;
-    var l = document.querySelectorAll('.lbl');
-    for (var j = 0; j < l.length; j++) l[j].textContent = 'АШЫЛУДА...';
+  // Батырма, сурет — бәрі WhatsApp-қа апарады.
+  // Сілтеме кәдімгідей бірден ашылады (кешіктірмейміз, бөгемейміз) —
+  // TikTok/Instagram браузерлерінде WhatsApp сенімді ашылуы үшін.
+  var links = document.querySelectorAll('.js-wa');
+  function go() {
     if (typeof window.__pxClick === 'function') { try { window.__pxClick(); } catch (er) {} }
-    setTimeout(function () { location.href = url; }, 120);
   }
   for (var b = 0; b < links.length; b++) { links[b].href = url; links[b].addEventListener('click', go); }
 
@@ -158,12 +154,6 @@ main{width:100%;max-width:440px;text-align:center}
       .observe(document.getElementById('waBtn'));
   }
 
-  // WhatsApp-тан артқа қайтқанда
-  window.addEventListener('pageshow', function () {
-    busy = false;
-    var l = document.querySelectorAll('.lbl');
-    for (var j = 0; j < l.length; j++) l[j].textContent = 'WHATSAPP-ҚА ЖАЗУ';
-  });
 })();
 </script>
 </body>
