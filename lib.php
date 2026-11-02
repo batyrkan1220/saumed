@@ -5,10 +5,13 @@ if (!defined('APP')) { http_response_code(403); exit; }
 ini_set('display_errors', '0');
 date_default_timezone_set('UTC');
 
+define('ROOT', __DIR__);
 define('DATA', __DIR__ . '/data');
 define('TZ', 5 * 3600);                 // Қазақстан уақыты (UTC+5)
 define('GUARD', "<?php exit; ?>\n");    // деректер файлын браузерден ашқанда ештеңе көрінбейді
+define('RESERVED', 'data,img,up,admin,go,track,lib,index,px,api,www,mail,cgi-bin');
 
+/* ================= Сақтау ================= */
 function ensure_data() {
     if (!is_dir(DATA)) @mkdir(DATA, 0755, true);
     $h = DATA . '/.htaccess';
@@ -37,30 +40,88 @@ function store_write($name, $data) {
     return @rename($tmp, $f);
 }
 
-function cfg_default() {
+/* ================= Проекттер ================= */
+function project_default($id = 'p1', $slug = '', $name = '') {
     return [
-        'password' => '',
-        'message'  => 'Бандаж бойынша жазып тұрмын',
+        'id'       => $id,
+        'slug'     => $slug,
+        'name'     => $name,
+        'active'   => true,
+        // Сайт мәтіні
+        'top'      => '',
+        'title'    => 'БАҒАСЫН БІЛІП ТОЛЫҚ АҚПАРАТ АЛУ ҮШІН',
+        'title_hl' => 'БАТЫРМАНЫ БАСЫҢЫЗ',
+        'button'   => 'WHATSAPP-ҚА ЖАЗУ',
+        'hint'     => 'Бір басыңыз — WhatsApp ашылады',
+        'message'  => 'Сәлеметсіз бе! Бағасын білгім келеді',
+        // Фото
+        'img'      => '',
+        'img_webp' => '',
+        'img_w'    => 0,
+        'img_h'    => 0,
+        // Тарату
         'mode'     => 'rr',
-        'fallback' => '77057636135',
-        'tt_ids'   => 'DBCM57BC77U4J2JQ97R0',   // TikTok пиксель ID (бірнешеу болса — үтірмен)
+        'managers' => [],
+        // Пиксельдер
+        'tt_ids'   => '',
         'tt_event' => 'ClickButton',
-        'fb_ids'   => '',                       // Meta (Facebook/Instagram) пиксель ID
+        'fb_ids'   => '',
         'fb_event' => 'Lead',
-        'managers' => [
-            ['id' => 'm1', 'name' => '1-менеджер', 'phone' => '77057636135', 'active' => true],
-        ],
     ];
 }
 
 function cfg() {
     $c = store_read('config');
-    if (!$c) { $c = cfg_default(); store_write('config', $c); }
-    return array_merge(cfg_default(), $c);
+    if (!$c) $c = [];
+    if (!isset($c['projects'])) {
+        // Ескі (бір проектілі) баптауларды Saumed проектіне көшіреміз
+        $p = project_default('p1', 'bel', 'Saumed — бандаж');
+        $p['top']      = 'БЕЛ ЖӘНЕ ОМЫРТҚА АУРУЛАРЫН ЕМДЕЙДІ';
+        $p['message']  = isset($c['message']) ? $c['message'] : 'Бандаж бойынша жазып тұрмын';
+        $p['mode']     = isset($c['mode']) ? $c['mode'] : 'rr';
+        $p['managers'] = isset($c['managers']) ? $c['managers'] : [['id' => 'm1', 'name' => '1-менеджер', 'phone' => '77057636135', 'active' => true]];
+        $p['tt_ids']   = isset($c['tt_ids']) ? $c['tt_ids'] : 'DBCM57BC77U4J2JQ97R0';
+        $p['tt_event'] = isset($c['tt_event']) ? $c['tt_event'] : 'ClickButton';
+        $p['fb_ids']   = isset($c['fb_ids']) ? $c['fb_ids'] : '';
+        $p['fb_event'] = isset($c['fb_event']) ? $c['fb_event'] : 'Lead';
+        $p['img'] = 'img/bandaj.jpg'; $p['img_webp'] = 'img/bandaj.webp'; $p['img_w'] = 540; $p['img_h'] = 560;
+        $c = ['password' => isset($c['password']) ? $c['password'] : '', 'projects' => [$p]];
+        store_write('config', $c);
+    }
+    if (!isset($c['password'])) $c['password'] = '';
+    foreach ($c['projects'] as $i => $p) $c['projects'][$i] = array_merge(project_default(), $p);
+    return $c;
 }
 
-function cfg_save($c) { $ok = store_write('config', $c); write_px($c); return $ok; }
+function cfg_save($c) { return store_write('config', $c); }
 
+function proj_index($c, $key, $val) {
+    foreach ($c['projects'] as $i => $p) if ($p[$key] === $val) return $i;
+    return -1;
+}
+
+function valid_slug($s) {
+    return preg_match('/^[a-z0-9][a-z0-9-]{1,29}$/', $s) && !in_array($s, explode(',', RESERVED), true);
+}
+
+// Проекттің папкасы: /slug/index.php — сайтты көрсетеді
+function ensure_stub($slug) {
+    if (!valid_slug($slug)) return false;
+    $d = ROOT . '/' . $slug;
+    if (!is_dir($d)) @mkdir($d, 0755);
+    $f = $d . '/index.php';
+    $code = "<?php\n// Проект сайты. Мәтіндер админ беттен өзгертіледі.\ndefine('APP', 1);\nrequire dirname(__DIR__) . '/lib.php';\nrender_landing(basename(__DIR__));\n";
+    if (!file_exists($f) || file_get_contents($f) !== $code) @file_put_contents($f, $code);
+    // Ескі статикалық бет қалып қойса — өшіреміз (index.html index.php-дан бұрын ашылады)
+    if (file_exists($d . '/index.html') && file_exists($f)) @unlink($d . '/index.html');
+    return file_exists($f);
+}
+
+function ensure_all_stubs($c) {
+    foreach ($c['projects'] as $p) ensure_stub($p['slug']);
+}
+
+/* ================= Оқиғалар (статистика) ================= */
 function log_event($e) {
     ensure_data();
     $f = DATA . '/ev-' . gmdate('Y-m', time() + TZ) . '.php';
@@ -71,7 +132,9 @@ function log_event($e) {
     @file_put_contents($f, json_encode($e, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
 }
 
-function load_events($from, $to) {
+function ev_pid($e) { return !empty($e['p']) ? $e['p'] : 'p1'; }  // ескі оқиғалар — Saumed
+
+function load_events($from, $to, $pid = null) {
     $out = [];
     $files = glob(DATA . '/ev-*.php') ?: [];
     sort($files);
@@ -82,11 +145,12 @@ function load_events($from, $to) {
         if ($ym < $fm || $ym > $tm) continue;
         $h = @fopen($f, 'r');
         if (!$h) continue;
-        fgets($h); // қорғаныс жолын өткізіп жібереміз
+        fgets($h);
         while (($line = fgets($h)) !== false) {
             $e = json_decode($line, true);
             if (!$e || !isset($e['t'])) continue;
             if ($e['t'] < $from || $e['t'] > $to) continue;
+            if ($pid !== null && ev_pid($e) !== $pid) continue;
             $out[] = $e;
         }
         fclose($h);
@@ -94,25 +158,40 @@ function load_events($from, $to) {
     return $out;
 }
 
-function first_event_ts() {
+function first_event_ts($pid = null) {
     $files = glob(DATA . '/ev-*.php') ?: [];
     sort($files);
     foreach ($files as $f) {
         $h = @fopen($f, 'r');
         if (!$h) continue;
         fgets($h);
-        $line = fgets($h);
+        while (($line = fgets($h)) !== false) {
+            $e = json_decode($line, true);
+            if ($e && isset($e['t']) && ($pid === null || ev_pid($e) === $pid)) { fclose($h); return (int)$e['t']; }
+        }
         fclose($h);
-        $e = $line ? json_decode($line, true) : null;
-        if ($e && isset($e['t'])) return (int)$e['t'];
     }
     return time();
 }
 
-// Кезекпен тарату санағышы (бір уақытта бірнеше адам басса да дұрыс жұмыс істейді)
-function next_rr($n) {
+// Проект статистикасын тазалау (басқа проекттердікі қалады)
+function purge_events($pid) {
+    foreach (glob(DATA . '/ev-*.php') ?: [] as $f) {
+        $lines = @file($f);
+        if (!$lines) continue;
+        $keep = [GUARD];
+        foreach (array_slice($lines, 1) as $line) {
+            $e = json_decode($line, true);
+            if ($e && ev_pid($e) !== $pid) $keep[] = $line;
+        }
+        @file_put_contents($f, implode('', $keep), LOCK_EX);
+    }
+}
+
+// Кезекпен тарату санағышы — әр проектке бөлек
+function next_rr($pid, $n) {
     ensure_data();
-    $h = @fopen(DATA . '/rr.lock', 'c+');
+    $h = @fopen(DATA . '/rr-' . preg_replace('/[^a-z0-9]/', '', $pid) . '.lock', 'c+');
     if (!$h) return mt_rand(0, $n - 1);
     flock($h, LOCK_EX);
     $v = (int)stream_get_contents($h);
@@ -125,9 +204,9 @@ function next_rr($n) {
     return $v % $n;
 }
 
+/* ================= Көмекші ================= */
 function clean_id($s) { return substr(preg_replace('/[^a-zA-Z0-9]/', '', (string)$s), 0, 32); }
 function clean_src($s) { return substr(preg_replace('/[^a-z0-9_.\-]/', '', strtolower((string)$s)), 0, 40); }
-
 function ua() { return isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : ''; }
 
 function is_bot() {
@@ -141,7 +220,6 @@ function device() {
     return 'Компьютер';
 }
 
-// utm_source жоқ болса, қай қосымшадан келгенін анықтауға тырысамыз
 function guess_src() {
     $u = ua();
     if (preg_match('/musical_ly|Bytedance|TikTok/i', $u)) return 'tiktok';
@@ -174,7 +252,7 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function ldate($fmt, $ts) { return gmdate($fmt, $ts + TZ); }
 function day_start($ts) { return (int)(floor(($ts + TZ) / 86400) * 86400 - TZ); }
 
-/* ---------- Пиксельдер: админде сақталғанда px.js файлы жасалады ---------- */
+/* ================= Пиксельдер ================= */
 function px_list($s, $re) {
     $out = [];
     foreach (preg_split('/[\s,;]+/', (string)$s) as $id) {
@@ -183,13 +261,12 @@ function px_list($s, $re) {
     return array_values(array_unique($out));
 }
 
-function write_px($c) {
-    $tt = px_list($c['tt_ids'], '/^[A-Z0-9]{8,30}$/');
-    $fb = px_list($c['fb_ids'], '/^\d{8,20}$/');
-    $te = preg_replace('/[^A-Za-z]/', '', $c['tt_event']) ?: 'ClickButton';
-    $fe = preg_replace('/[^A-Za-z]/', '', $c['fb_event']) ?: 'Lead';
-    $js = "/* Админ беттен автоматты жасалған файл. Қолмен өзгертпеңіз. */\n(function(w,d){\n";
-    $js .= 'var TT=' . json_encode($tt) . ',TE=' . json_encode($te) . ',FB=' . json_encode($fb) . ',FE=' . json_encode($fe) . ";\n";
+function px_js($p) {
+    $tt = px_list($p['tt_ids'], '/^[A-Z0-9]{8,30}$/');
+    $fb = px_list($p['fb_ids'], '/^\d{8,20}$/');
+    $te = preg_replace('/[^A-Za-z]/', '', $p['tt_event']) ?: 'ClickButton';
+    $fe = preg_replace('/[^A-Za-z]/', '', $p['fb_event']) ?: 'Lead';
+    $js = '(function(w,d){var TT=' . json_encode($tt) . ',TE=' . json_encode($te) . ',FB=' . json_encode($fb) . ',FE=' . json_encode($fe) . ";\n";
     if ($tt) {
         $js .= <<<'JS'
 !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=d.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=d.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
@@ -204,9 +281,157 @@ for(var j=0;j<FB.length;j++)fbq('init',FB[j]);fbq('track','PageView');
 
 JS;
     }
-    $js .= "w.__pxClick=function(){if(TT.length&&w.ttq)w.ttq.track(TE);if(FB.length&&w.fbq)w.fbq('track',FE);};\n})(window,document);\n";
-    $f = __DIR__ . '/px.js';
-    $tmp = $f . '.' . mt_rand(1000, 9999) . '.tmp';
-    if (@file_put_contents($tmp, $js) === false) return false;
-    return @rename($tmp, $f);
+    $js .= "w.__pxClick=function(){if(TT.length&&w.ttq)w.ttq.track(TE);if(FB.length&&w.fbq)w.fbq('track',FE);};})(window,document);";
+    return $js;
+}
+
+/* ================= Фото жүктеу ================= */
+function save_upload($file, $slug) {
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) return 'Файл таңдалмады';
+    if ($file['size'] > 8 * 1024 * 1024) return 'Файл тым үлкен (8 MB-тан аспасын)';
+    $info = @getimagesize($file['tmp_name']);
+    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) return 'Тек JPG, PNG немесе WEBP сурет';
+    $dir = ROOT . '/up';
+    if (!is_dir($dir)) @mkdir($dir, 0755);
+    $base = 'up/' . $slug . '-' . substr(md5(uniqid('', true)), 0, 6);
+    $res = ['img' => '', 'img_webp' => '', 'img_w' => $info[0], 'img_h' => $info[1]];
+    if (function_exists('imagecreatefromstring')) {
+        $src = @imagecreatefromstring(file_get_contents($file['tmp_name']));
+        if ($src) {
+            // Барлық проекттегі фото бірдей: 540×560, ортасынан кесіледі
+            $TW = 540; $TH = 560;
+            $w = imagesx($src); $hh = imagesy($src);
+            $scale = max($TW / $w, $TH / $hh);
+            $cw = (int)round($TW / $scale); $ch = (int)round($TH / $scale);
+            $sx = (int)round(($w - $cw) / 2); $sy = (int)round(($hh - $ch) / 2);
+            $dst = imagecreatetruecolor($TW, $TH);
+            imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+            imagecopyresampled($dst, $src, 0, 0, $sx, $sy, $TW, $TH, $cw, $ch);
+            imageinterlace($dst, true);
+            imagejpeg($dst, ROOT . '/' . $base . '.jpg', 76);
+            $res['img'] = $base . '.jpg';
+            if (function_exists('imagewebp') && @imagewebp($dst, ROOT . '/' . $base . '.webp', 70)) $res['img_webp'] = $base . '.webp';
+            $res['img_w'] = $TW; $res['img_h'] = $TH;
+            imagedestroy($src); imagedestroy($dst);
+            return $res;
+        }
+    }
+    // GD жоқ болса — түпнұсқаны сақтаймыз
+    $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'][$info[2]];
+    if (!@move_uploaded_file($file['tmp_name'], ROOT . '/' . $base . '.' . $ext)) return 'Файлды сақтау мүмкін болмады';
+    $res['img'] = $base . '.' . $ext;
+    return $res;
+}
+
+/* ================= Проект сайты (лендинг) ================= */
+function render_landing($slug) {
+    $c = cfg();
+    $i = proj_index($c, 'slug', $slug);
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Cache-Control: no-cache');
+    if ($i < 0 || empty($c['projects'][$i]['active'])) {
+        http_response_code(404);
+        echo '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Табылмады</title><p style="font:18px sans-serif;text-align:center;margin-top:30vh">Бет табылмады</p>';
+        return;
+    }
+    $p = $c['projects'][$i];
+    $go = '../go.php?p=' . rawurlencode($p['id']);
+    ?>
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title><?= h($p['top'] ?: $p['name']) ?></title>
+<meta name="description" content="<?= h(trim($p['title'] . ' ' . $p['title_hl'])) ?>">
+<meta name="theme-color" content="#1faa55">
+<?php if ($p['img']): ?>
+<meta property="og:image" content="../<?= h($p['img']) ?>">
+<link rel="preload" as="image" href="../<?= h($p['img_webp'] ?: $p['img']) ?>">
+<?php endif; ?>
+<script><?= px_js($p) ?></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{background:#fff;color:#111;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+main{width:100%;max-width:440px;text-align:center}
+.top{color:#13803f;font-weight:800;font-size:clamp(14px,4.2vw,17px);line-height:1.3;margin-bottom:10px}
+.photo{display:block;margin:0 auto 12px}
+.photo img{display:block;margin:0 auto;width:auto;max-width:100%;height:min(38vh,320px);border-radius:16px}
+.title{font-size:clamp(21px,6.2vw,27px);font-weight:900;line-height:1.25;margin-bottom:16px}
+.title span{color:#13803f}
+.wa{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:76px;padding:12px 16px;background:#1faa55;color:#fff;text-decoration:none;border-radius:18px;font-size:clamp(17px,5.5vw,24px);font-weight:900;white-space:nowrap;box-shadow:0 5px 0 #13803f;animation:pulse 1.8s ease-in-out infinite}
+.wa:active{transform:translateY(4px);box-shadow:0 1px 0 #13803f}
+.wa svg{width:34px;height:34px;flex-shrink:0;fill:#fff}
+.hint{margin-top:12px;font-size:clamp(15px,4.4vw,17px);color:#444;font-weight:600}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:9;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #e5e5e5;display:none}
+.sticky.show{display:block}
+.sticky .wa{max-width:440px;margin:0 auto;min-height:64px;animation:none}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+@media (prefers-reduced-motion:reduce){.wa{animation:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="wa" viewBox="0 0 32 32"><path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.9 6.5L4 29l7.7-1.9A12 12 0 0 0 16 27c6.6 0 12-5.4 12-12S22.6 3 16 3zm0 21.8c-1.8 0-3.5-.5-5-1.4l-.4-.2-4.6 1.1 1.1-4.4-.2-.4A9.8 9.8 0 0 1 6.2 15c0-5.4 4.4-9.8 9.8-9.8s9.8 4.4 9.8 9.8-4.4 9.8-9.8 9.8zm5.4-7.3c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.4-1.5-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.5.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.8 1.2 3c.1.2 2.1 3.2 5 4.4.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3z"/></symbol></svg>
+<main>
+<?php if ($p['top'] !== ''): ?>  <p class="top"><?= h($p['top']) ?></p>
+<?php endif; ?>
+<?php if ($p['img']): ?>  <a class="photo js-wa" href="<?= h($go) ?>" aria-label="WhatsApp">
+    <picture><?php if ($p['img_webp']): ?><source srcset="../<?= h($p['img_webp']) ?>" type="image/webp"><?php endif; ?><img src="../<?= h($p['img']) ?>" width="<?= (int)$p['img_w'] ?>" height="<?= (int)$p['img_h'] ?>" alt="<?= h($p['name']) ?>"></picture>
+  </a>
+<?php endif; ?>
+  <h1 class="title"><?= h($p['title']) ?><?php if ($p['title_hl'] !== ''): ?> <span><?= h($p['title_hl']) ?></span> 👇<?php endif; ?></h1>
+  <a id="waBtn" class="wa js-wa" href="<?= h($go) ?>"><svg aria-hidden="true"><use href="#wa"/></svg><span><?= h($p['button']) ?></span></a>
+<?php if ($p['hint'] !== ''): ?>  <p class="hint"><?= h($p['hint']) ?></p>
+<?php endif; ?>
+</main>
+<div class="sticky" id="sticky"><a class="wa js-wa" href="<?= h($go) ?>" tabindex="-1"><svg aria-hidden="true"><use href="#wa"/></svg><span><?= h($p['button']) ?></span></a></div>
+<script>
+(function () {
+  var P = <?= json_encode($p['id']) ?>;
+  function sg(s, k) { try { return s.getItem(k); } catch (e) { return null; } }
+  function ss(s, k, v) { try { s.setItem(k, v); } catch (e) {} }
+  var LS = window.localStorage, SS = window.sessionStorage;
+  var vid = sg(LS, 'vid');
+  if (!vid) { vid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10); ss(LS, 'vid', vid); }
+  document.cookie = 'vid=' + vid + ';path=/;max-age=31536000;samesite=lax';
+  var q = new URLSearchParams(location.search);
+  var src = (q.get('utm_source') || '').toLowerCase();
+  if (!src) src = q.get('ttclid') ? 'tiktok' : q.get('fbclid') ? 'facebook' : q.get('gclid') ? 'google' : '';
+  if (!src && document.referrer) {
+    try {
+      var hh = new URL(document.referrer).hostname.replace(/^www\./, '');
+      if (hh && hh !== location.hostname) {
+        src = hh;
+        var k = ['tiktok', 'instagram', 'facebook', 'google', 'youtube', 'vk', 'yandex', 'telegram'];
+        for (var i = 0; i < k.length; i++) if (hh.indexOf(k[i]) > -1) { src = k[i]; break; }
+      }
+    } catch (e) {}
+  }
+  src = src || sg(SS, 'src') || ''; ss(SS, 'src', src);
+  var cmp = (q.get('utm_campaign') || sg(SS, 'cmp') || '').toLowerCase(); ss(SS, 'cmp', cmp);
+  var mg = (q.get('m') || sg(SS, 'm' + P) || '').replace(/[^a-zA-Z0-9]/g, ''); ss(SS, 'm' + P, mg);
+  var url = '../go.php?p=' + encodeURIComponent(P) + '&vid=' + encodeURIComponent(vid) + '&src=' + encodeURIComponent(src) +
+            '&cmp=' + encodeURIComponent(cmp) + (mg ? '&m=' + encodeURIComponent(mg) : '');
+  // Сілтеме бірден ашылады — WhatsApp сенімді ашылуы үшін кешіктірмейміз
+  var links = document.querySelectorAll('.js-wa');
+  function px() { if (typeof window.__pxClick === 'function') { try { window.__pxClick(); } catch (er) {} } }
+  for (var b = 0; b < links.length; b++) { links[b].href = url; links[b].addEventListener('click', px); }
+  setTimeout(function () {
+    try {
+      var fd = new FormData();
+      fd.append('p', P); fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg);
+      if (navigator.sendBeacon) navigator.sendBeacon('../track.php', fd);
+      else fetch('../track.php', { method: 'POST', body: fd, keepalive: true });
+    } catch (e) {}
+  }, 0);
+  var st = document.getElementById('sticky');
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (en) { st.classList.toggle('show', !en[0].isIntersecting); }).observe(document.getElementById('waBtn'));
+  }
+})();
+</script>
+</body>
+</html>
+<?php
 }

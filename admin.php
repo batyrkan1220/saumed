@@ -10,7 +10,6 @@ session_start();
 
 ensure_data();
 $cfg = cfg();
-if (!file_exists(__DIR__ . '/px.js')) write_px($cfg);
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
@@ -20,6 +19,7 @@ function go_to($q = '', $msg = '') {
     exit;
 }
 function post($k, $d = '') { return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d; }
+function csrf_field() { global $CSRF; return '<input type="hidden" name="csrf" value="' . h($CSRF) . '">'; }
 
 /* ---------------- HTML бастамасы / соңы ---------------- */
 function head_html($title) { ?>
@@ -98,6 +98,14 @@ label{display:block;font-weight:600;font-size:13px;margin:10px 0 5px}
 code{background:#f1f5f9;padding:2px 6px;border-radius:6px;font-size:13px;word-break:break-all}
 .radio{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-weight:500}
 .radio input{margin-top:4px}
+.psw{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.psw select{width:auto;max-width:230px;padding:7px 10px;font-weight:700}
+.preview{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.preview img{width:110px;height:110px;object-fit:contain;background:#f3f4f6;border-radius:12px}
+.pj{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--b)}
+.pj:last-child{border-bottom:0}
+.pj.cur{background:#f0fdf4;margin:0 -16px;padding:12px 16px}
+.sec{font-size:15px;margin:18px 0 4px;padding-top:14px;border-top:1px solid var(--b)}
 </style>
 </head>
 <body>
@@ -146,9 +154,7 @@ if (isset($_GET['logout'])) { $_SESSION = []; session_destroy(); header('Locatio
 if (empty($_SESSION['ok'])) {
     $err = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (password_verify(post('p'), $cfg['password'])) {
-            session_regenerate_id(true); $_SESSION['ok'] = 1; go_to();
-        }
+        if (password_verify(post('p'), $cfg['password'])) { session_regenerate_id(true); $_SESSION['ok'] = 1; go_to(); }
         sleep(1);
         $err = 'Құпиясөз қате';
     }
@@ -164,67 +170,135 @@ if (empty($_SESSION['ok'])) {
     <?php foot_html(); exit;
 }
 
+ensure_all_stubs($cfg);
+
+/* ---------------- Ағымдағы проект ---------------- */
+if (isset($_GET['p']) && proj_index($cfg, 'id', $_GET['p']) >= 0) $_SESSION['p'] = $_GET['p'];
+$PI = proj_index($cfg, 'id', isset($_SESSION['p']) ? $_SESSION['p'] : '');
+if ($PI < 0) $PI = 0;
+$P = $cfg['projects'][$PI];
+
+$base = (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '') . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
+$land = $base . $P['slug'] . '/';
+
 /* ---------------- Әрекеттер (POST) ---------------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($CSRF, post('csrf'))) go_to('', 'Бетті жаңартып, қайта көріңіз');
     $a = post('a');
+    $M = &$cfg['projects'][$PI]['managers'];
     $id = post('id');
     $idx = -1;
-    foreach ($cfg['managers'] as $i => $m) if ($m['id'] === $id) $idx = $i;
+    foreach ($M as $i => $m) if ($m['id'] === $id) $idx = $i;
 
+    /* --- Менеджерлер --- */
     if ($a === 'add') {
         $phone = norm_phone(post('phone'));
         if (!$phone) go_to('tab=managers', '⚠️ Нөмір дұрыс емес. Мысалы: 87051234567');
         $max = 0;
-        foreach ($cfg['managers'] as $m) $max = max($max, (int)substr($m['id'], 1));
-        $name = post('name') ?: ((count($cfg['managers']) + 1) . '-менеджер');
-        $cfg['managers'][] = ['id' => 'm' . ($max + 1), 'name' => mb_substr($name, 0, 40), 'phone' => $phone, 'active' => true];
+        foreach ($M as $m) $max = max($max, (int)substr($m['id'], 1));
+        $name = post('name') ?: ((count($M) + 1) . '-менеджер');
+        $M[] = ['id' => 'm' . ($max + 1), 'name' => mb_substr($name, 0, 40), 'phone' => $phone, 'active' => true];
         cfg_save($cfg);
         go_to('tab=managers', 'Менеджер қосылды ✓');
     }
     if ($a === 'save' && $idx >= 0) {
         $phone = norm_phone(post('phone'));
         if (!$phone) go_to('tab=managers', '⚠️ Нөмір дұрыс емес');
-        $cfg['managers'][$idx]['name'] = mb_substr(post('name') ?: $cfg['managers'][$idx]['name'], 0, 40);
-        $cfg['managers'][$idx]['phone'] = $phone;
+        $M[$idx]['name'] = mb_substr(post('name') ?: $M[$idx]['name'], 0, 40);
+        $M[$idx]['phone'] = $phone;
         cfg_save($cfg);
         go_to('tab=managers', 'Сақталды ✓');
     }
     if ($a === 'toggle' && $idx >= 0) {
-        $cfg['managers'][$idx]['active'] = empty($cfg['managers'][$idx]['active']);
+        $M[$idx]['active'] = empty($M[$idx]['active']);
         cfg_save($cfg);
-        go_to('tab=managers', $cfg['managers'][$idx]['active'] ? 'Менеджер қосылды — өтінімдер түседі' : 'Менеджер тоқтатылды — өтінімдер түспейді');
+        go_to('tab=managers', $M[$idx]['active'] ? 'Менеджер қосылды — өтінімдер түседі' : 'Менеджер тоқтатылды — өтінімдер түспейді');
     }
     if ($a === 'del' && $idx >= 0) {
-        array_splice($cfg['managers'], $idx, 1);
+        array_splice($M, $idx, 1);
         cfg_save($cfg);
         go_to('tab=managers', 'Менеджер өшірілді');
     }
     if (($a === 'up' || $a === 'down') && $idx >= 0) {
         $j = $a === 'up' ? $idx - 1 : $idx + 1;
-        if (isset($cfg['managers'][$j])) {
-            $t = $cfg['managers'][$idx]; $cfg['managers'][$idx] = $cfg['managers'][$j]; $cfg['managers'][$j] = $t;
-            cfg_save($cfg);
-        }
+        if (isset($M[$j])) { $t = $M[$idx]; $M[$idx] = $M[$j]; $M[$j] = $t; cfg_save($cfg); }
         go_to('tab=managers');
     }
-    if ($a === 'settings') {
-        $cfg['message'] = mb_substr(post('message'), 0, 500);
-        $cfg['mode'] = post('mode') === 'random' ? 'random' : 'rr';
+
+    /* --- Сайт мәтіні, фото, пиксель --- */
+    if ($a === 'site') {
+        $X = &$cfg['projects'][$PI];
+        $X['name']     = mb_substr(post('name') ?: $X['name'], 0, 60);
+        $X['top']      = mb_substr(post('top'), 0, 120);
+        $X['title']    = mb_substr(post('title'), 0, 200);
+        $X['title_hl'] = mb_substr(post('title_hl'), 0, 100);
+        $X['button']   = mb_substr(post('button') ?: 'WHATSAPP-ҚА ЖАЗУ', 0, 40);
+        $X['hint']     = mb_substr(post('hint'), 0, 120);
+        $X['message']  = mb_substr(post('message'), 0, 500);
+        $X['mode']     = post('mode') === 'random' ? 'random' : 'rr';
+        $X['active']   = post('active') === '1';
+        $X['tt_ids']   = implode(', ', px_list(strtoupper(post('tt_ids')), '/^[A-Z0-9]{8,30}$/'));
+        $X['fb_ids']   = implode(', ', px_list(post('fb_ids'), '/^\d{8,20}$/'));
+        $X['tt_event'] = in_array(post('tt_event'), ['ClickButton', 'Contact', 'SubmitForm', 'Lead', 'CompleteRegistration'], true) ? post('tt_event') : 'ClickButton';
+        $X['fb_event'] = in_array(post('fb_event'), ['Lead', 'Contact', 'SubmitApplication', 'CompleteRegistration'], true) ? post('fb_event') : 'Lead';
+        $msg = 'Сайт сақталды ✓ Өзгерістер бірден көрінеді';
+        // Сілтеме (slug) өзгерсе
+        $slug = strtolower(post('slug'));
+        if ($slug !== $X['slug']) {
+            if (!valid_slug($slug)) go_to('tab=site', '⚠️ Сілтеме тек латын әріп, сан және «-» болсын (2–30 таңба)');
+            if (proj_index($cfg, 'slug', $slug) >= 0) go_to('tab=site', '⚠️ Бұл сілтеме бос емес');
+            if (is_dir(ROOT . '/' . $slug) && !file_exists(ROOT . '/' . $slug . '/index.php')) go_to('tab=site', '⚠️ Мұндай папка серверде бар, басқа атау таңдаңыз');
+            $old = $X['slug'];
+            $X['slug'] = $slug;
+            ensure_stub($slug);
+            if ($old && file_exists(ROOT . '/' . $old . '/index.php')) @unlink(ROOT . '/' . $old . '/index.php');
+            $msg = 'Сайт сақталды ✓ Жаңа сілтеме: ' . $base . $slug . '/';
+        }
+        // Фото
+        if (!empty($_FILES['photo']['name'])) {
+            $r = save_upload($_FILES['photo'], $X['slug']);
+            if (is_string($r)) { cfg_save($cfg); go_to('tab=site', '⚠️ Фото: ' . $r); }
+            foreach (['img', 'img_webp'] as $k) if ($X[$k] && strpos($X[$k], 'up/') === 0) @unlink(ROOT . '/' . $X[$k]);
+            $X = array_merge($X, $r);
+        } elseif (post('photo_del') === '1') {
+            foreach (['img', 'img_webp'] as $k) if ($X[$k] && strpos($X[$k], 'up/') === 0) @unlink(ROOT . '/' . $X[$k]);
+            $X['img'] = $X['img_webp'] = ''; $X['img_w'] = $X['img_h'] = 0;
+        }
         cfg_save($cfg);
-        go_to('tab=settings', 'Баптаулар сақталды ✓');
+        go_to('tab=site', $msg);
     }
-    if ($a === 'pixels') {
-        $tt = px_list(strtoupper(post('tt_ids')), '/^[A-Z0-9]{8,30}$/');
-        $fb = px_list(post('fb_ids'), '/^\d{8,20}$/');
-        $cfg['tt_ids'] = implode(', ', $tt);
-        $cfg['fb_ids'] = implode(', ', $fb);
-        $cfg['tt_event'] = in_array(post('tt_event'), ['ClickButton', 'Contact', 'SubmitForm', 'Lead', 'CompleteRegistration'], true) ? post('tt_event') : 'ClickButton';
-        $cfg['fb_event'] = in_array(post('fb_event'), ['Lead', 'Contact', 'SubmitApplication', 'CompleteRegistration'], true) ? post('fb_event') : 'Lead';
+
+    /* --- Проекттер --- */
+    if ($a === 'proj_add') {
+        $name = mb_substr(post('name'), 0, 60);
+        $slug = strtolower(post('slug'));
+        if ($name === '') go_to('tab=projects', '⚠️ Проект атын жазыңыз');
+        if (!valid_slug($slug)) go_to('tab=projects', '⚠️ Сілтеме тек латын әріп, сан және «-» болсын (2–30 таңба). Мысалы: tize, kolen, massajer');
+        if (proj_index($cfg, 'slug', $slug) >= 0) go_to('tab=projects', '⚠️ Бұл сілтеме бос емес');
+        if (is_dir(ROOT . '/' . $slug) && !file_exists(ROOT . '/' . $slug . '/index.php')) go_to('tab=projects', '⚠️ Мұндай папка серверде бар, басқа атау таңдаңыз');
+        $max = 0;
+        foreach ($cfg['projects'] as $p) $max = max($max, (int)substr($p['id'], 1));
+        $np = project_default('p' . ($max + 1), $slug, $name);
+        $phone = norm_phone(post('phone'));
+        if ($phone) $np['managers'][] = ['id' => 'm1', 'name' => '1-менеджер', 'phone' => $phone, 'active' => true];
+        $cfg['projects'][] = $np;
         cfg_save($cfg);
-        if (!file_exists(__DIR__ . '/px.js')) go_to('tab=settings', '⚠️ px.js файлын жазу мүмкін болмады. Сайт папкасына жазу рұқсатын тексеріңіз.');
-        go_to('tab=settings', 'Пиксельдер сақталды ✓ Сайтта бірден жұмыс істейді');
+        ensure_stub($slug);
+        $_SESSION['p'] = $np['id'];
+        go_to('tab=site', 'Жаңа проект ашылды ✓ Енді мәтінді, фотоны және пиксельді баптаңыз');
     }
+    if ($a === 'proj_del') {
+        if (count($cfg['projects']) < 2) go_to('tab=projects', '⚠️ Соңғы проектті өшіруге болмайды');
+        if (post('confirm') !== $P['slug']) go_to('tab=projects', '⚠️ Растау үшін проект сілтемесін дәл жазыңыз: ' . $P['slug']);
+        if (file_exists(ROOT . '/' . $P['slug'] . '/index.php')) @unlink(ROOT . '/' . $P['slug'] . '/index.php');
+        foreach (['img', 'img_webp'] as $k) if ($P[$k] && strpos($P[$k], 'up/') === 0) @unlink(ROOT . '/' . $P[$k]);
+        array_splice($cfg['projects'], $PI, 1);
+        cfg_save($cfg);
+        unset($_SESSION['p']);
+        go_to('tab=projects', 'Проект өшірілді');
+    }
+
+    /* --- Жалпы баптаулар --- */
     if ($a === 'pass') {
         if (!password_verify(post('old'), $cfg['password'])) go_to('tab=settings', '⚠️ Қазіргі құпиясөз қате');
         if (strlen(post('p1')) < 6 || post('p1') !== post('p2')) go_to('tab=settings', '⚠️ Жаңа құпиясөз кемінде 6 таңба және екеуі бірдей болуы керек');
@@ -233,8 +307,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         go_to('tab=settings', 'Құпиясөз өзгертілді ✓');
     }
     if ($a === 'reset' && post('confirm') === 'ИӘ') {
-        foreach (glob(DATA . '/ev-*.php') ?: [] as $f) @unlink($f);
-        go_to('tab=settings', 'Статистика тазаланды');
+        purge_events($P['id']);
+        go_to('tab=settings', '«' . $P['name'] . '» статистикасы тазаланды');
     }
     go_to();
 }
@@ -242,20 +316,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $flash = isset($_SESSION['flash']) ? $_SESSION['flash'] : '';
 unset($_SESSION['flash']);
 $tab = isset($_GET['tab']) ? $_GET['tab'] : 'stats';
-if (!in_array($tab, ['stats', 'managers', 'settings'], true)) $tab = 'stats';
+if (!in_array($tab, ['stats', 'managers', 'site', 'projects', 'settings'], true)) $tab = 'stats';
 
-$base = (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '') . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
-$land = $base . 'bel/';  // бандаж сайтының мекенжайы
-
-head_html('Админ панель');
+head_html('Админ — ' . $P['name']);
 ?>
 <div class="top"><div class="top-in">
-  <div class="brand"><i></i> Админ панель</div>
+  <div class="psw">
+    <span class="brand"><i></i></span>
+    <form method="get"><input type="hidden" name="tab" value="<?= h($tab) ?>">
+      <select name="p" onchange="this.form.submit()" aria-label="Проект">
+        <?php foreach ($cfg['projects'] as $p): ?><option value="<?= h($p['id']) ?>" <?= $p['id'] === $P['id'] ? 'selected' : '' ?>><?= h($p['name']) ?></option><?php endforeach; ?>
+      </select>
+    </form>
+    <a class="btn sm gray" style="text-decoration:none" href="?tab=projects">＋ Проект</a>
+  </div>
   <nav class="tabs">
     <a href="?tab=stats" class="<?= $tab === 'stats' ? 'on' : '' ?>">📊 Аналитика</a>
     <a href="?tab=managers" class="<?= $tab === 'managers' ? 'on' : '' ?>">👥 Менеджерлер</a>
-    <a href="?tab=settings" class="<?= $tab === 'settings' ? 'on' : '' ?>">⚙️ Баптаулар</a>
-    <a href="bel/" target="_blank">🌐 Сайт</a>
+    <a href="?tab=site" class="<?= $tab === 'site' ? 'on' : '' ?>">✏️ Сайт</a>
+    <a href="?tab=projects" class="<?= $tab === 'projects' ? 'on' : '' ?>">📁 Проекттер</a>
+    <a href="?tab=settings" class="<?= $tab === 'settings' ? 'on' : '' ?>">⚙️</a>
+    <a href="<?= h($land) ?>" target="_blank">🌐</a>
     <a href="?logout=1" class="out">Шығу</a>
   </nav>
 </div></div>
@@ -273,7 +354,7 @@ if ($tab === 'stats'):
     if ($r === 'yesterday') { $from = $t0 - 86400; $to = $t0 - 1; $rangeLabel = 'Кеше'; }
     elseif ($r === '7') { $from = $t0 - 6 * 86400; $rangeLabel = 'Соңғы 7 күн'; }
     elseif ($r === '30') { $from = $t0 - 29 * 86400; $rangeLabel = 'Соңғы 30 күн'; }
-    elseif ($r === 'all') { $from = day_start(first_event_ts()); $rangeLabel = 'Барлық уақыт'; }
+    elseif ($r === 'all') { $from = day_start(first_event_ts($P['id'])); $rangeLabel = 'Барлық уақыт'; }
     elseif ($r === 'custom') {
         $df = isset($_GET['from']) ? $_GET['from'] : ''; $dt = isset($_GET['to']) ? $_GET['to'] : '';
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $df) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
@@ -284,7 +365,7 @@ if ($tab === 'stats'):
         } else $r = 'today';
     }
 
-    $ev = load_events($from, $to);
+    $ev = load_events($from, $to, $P['id']);
     $visits = 0; $clicks = 0; $uv = []; $uc = [];
     $byM = []; $byS = []; $byD = []; $byC = []; $recent = [];
     $hourly = ($to - $from) <= 86400;
@@ -321,8 +402,7 @@ if ($tab === 'stats'):
             if (isset($buckets[$bk])) $buckets[$bk][1]++;
         }
     }
-    // Менеджер аттарын қазіргі баптаулардан аламыз
-    foreach ($cfg['managers'] as $m) if (isset($byM[$m['id']])) $byM[$m['id']]['n'] = $m['name'];
+    foreach ($P['managers'] as $m) if (isset($byM[$m['id']])) $byM[$m['id']]['n'] = $m['name'];
     uasort($byM, function ($a, $b) { return $b['c'] - $a['c']; });
     uasort($byS, function ($a, $b) { return ($b[0] + $b[1]) - ($a[0] + $a[1]); });
     uasort($byD, function ($a, $b) { return ($b[0] + $b[1]) - ($a[0] + $a[1]); });
@@ -356,12 +436,12 @@ if ($tab === 'stats'):
   </div>
 
   <div class="card">
-    <h2><?= h($rangeLabel) ?> — <?= $hourly ? 'сағат бойынша' : 'күн бойынша' ?></h2>
+    <h2><?= h($P['name']) ?> · <?= h($rangeLabel) ?> — <?= $hourly ? 'сағат бойынша' : 'күн бойынша' ?></h2>
     <div class="legend"><span><i style="background:#bbf7d0"></i>Кірулер</span><span><i style="background:#16a34a"></i>WhatsApp басулар</span></div>
     <?php
     $n = count($buckets); $max = 1;
     foreach ($buckets as $b) $max = max($max, $b[1], $b[2]);
-    $W = 26; $H = 170; $pad = 22; $w = max($n * $W, 300);
+    $H = 170; $pad = 22; $w = max($n * 26, 300);
     $every = max(1, (int)ceil($n / 15));
     echo '<svg class="chart" viewBox="0 0 ' . $w . ' ' . ($H + $pad) . '" preserveAspectRatio="none" style="max-height:260px">';
     for ($g = 0; $g <= 4; $g++) { $y = $H - $H * $g / 4; echo '<line x1="0" x2="' . $w . '" y1="' . $y . '" y2="' . $y . '" stroke="#eef2f6"/>'; }
@@ -383,13 +463,12 @@ if ($tab === 'stats'):
     <div class="card">
       <h2>👥 Менеджерлерге түскен өтінімдер</h2>
       <?php if (!$byM): ?><p class="muted">Бұл кезеңде басулар әлі жоқ</p><?php else: ?>
-      <table><tr><th>Менеджер</th><th class="n">Барлық басу</th><th class="n" title="Жеке сілтемеден: кіру / басу">Жеке сілтеме</th></tr>
-      <?php foreach ($byM as $m): $p = $clicks ? round($m['c'] / $clicks * 100) : 0; ?>
-        <tr><td><?= h($m['n']) ?><div class="bar"><b style="width:<?= $p ?>%"></b></div></td><td class="n"><b><?= $m['c'] ?></b> <span class="muted"><?= $p ?>%</span></td><td class="n"><?= $m['ov'] || $m['oc'] ? $m['ov'] . ' / <b>' . $m['oc'] . '</b>' : '<span class="muted">—</span>' ?></td></tr>
+      <table><tr><th>Менеджер</th><th class="n">Барлық басу</th><th class="n">Жеке сілтеме</th></tr>
+      <?php foreach ($byM as $m): $pc = $clicks ? round($m['c'] / $clicks * 100) : 0; ?>
+        <tr><td><?= h($m['n']) ?><div class="bar"><b style="width:<?= $pc ?>%"></b></div></td><td class="n"><b><?= $m['c'] ?></b> <span class="muted"><?= $pc ?>%</span></td><td class="n"><?= $m['ov'] || $m['oc'] ? $m['ov'] . ' / <b>' . $m['oc'] . '</b>' : '<span class="muted">—</span>' ?></td></tr>
       <?php endforeach; ?></table>
-      <p class="muted" style="margin-top:8px">«Жеке сілтеме» бағаны: менеджердің өз сілтемесімен кірген / WhatsApp басқан адамдар.</p><?php endif; ?>
+      <p class="muted" style="margin-top:8px">«Жеке сілтеме»: менеджердің өз сілтемесімен кірген / WhatsApp басқан адамдар.</p><?php endif; ?>
     </div>
-
     <div class="card">
       <h2>🌐 Қайдан келді</h2>
       <?php if (!$byS): ?><p class="muted">Деректер әлі жоқ</p><?php else: ?>
@@ -398,7 +477,6 @@ if ($tab === 'stats'):
         <tr><td><?= h($sn($k)) ?></td><td class="n"><?= $v[0] ?></td><td class="n"><b><?= $v[1] ?></b></td><td class="n"><?= $v[0] ? round($v[1] / $v[0] * 100) . '%' : '—' ?></td></tr>
       <?php endforeach; ?></table><?php endif; ?>
     </div>
-
     <div class="card">
       <h2>📱 Құрылғылар</h2>
       <?php if (!$byD): ?><p class="muted">Деректер әлі жоқ</p><?php else: ?>
@@ -407,7 +485,6 @@ if ($tab === 'stats'):
         <tr><td><?= h($k) ?></td><td class="n"><?= $v[0] ?></td><td class="n"><b><?= $v[1] ?></b></td></tr>
       <?php endforeach; ?></table><?php endif; ?>
     </div>
-
     <div class="card">
       <h2>🎯 Науқандар (utm_campaign)</h2>
       <?php if (!$byC): ?><p class="muted">Жарнама сілтемесіне <code>?utm_campaign=атауы</code> қоссаңыз, осында әр жарнама бөлек көрінеді.</p><?php else: ?>
@@ -423,7 +500,7 @@ if ($tab === 'stats'):
     <?php if (!$recent): ?><p class="muted">Бұл кезеңде басулар әлі жоқ</p><?php else: ?>
     <div style="overflow-x:auto"><table><tr><th>Уақыт</th><th>Менеджер</th><th>Дереккөз</th><th>Құрылғы</th></tr>
     <?php foreach ($recent as $e): $mn = isset($e['mn']) ? $e['mn'] : '—';
-        foreach ($cfg['managers'] as $m) if (isset($e['m']) && $m['id'] === $e['m']) $mn = $m['name']; ?>
+        foreach ($P['managers'] as $m) if (isset($e['m']) && $m['id'] === $e['m']) $mn = $m['name']; ?>
       <tr><td><?= ldate('d.m H:i', $e['t']) ?></td><td><?= h($mn) ?></td><td><?= h($sn(!empty($e['s']) ? $e['s'] : 'direct')) ?><?= !empty($e['c']) ? ' <span class="muted">· ' . h($e['c']) . '</span>' : '' ?></td><td><?= h(isset($e['d']) ? $e['d'] : '') ?></td></tr>
     <?php endforeach; ?></table></div><?php endif; ?>
   </div>
@@ -432,14 +509,14 @@ if ($tab === 'stats'):
 /* ================= МЕНЕДЖЕРЛЕР ================= */
 elseif ($tab === 'managers'):
     $todayCl = [];
-    foreach (load_events(day_start(time()), time()) as $e) if ($e['e'] === 'c' && !empty($e['m'])) $todayCl[$e['m']] = (isset($todayCl[$e['m']]) ? $todayCl[$e['m']] : 0) + 1;
-    $activeCount = 0; foreach ($cfg['managers'] as $m) if (!empty($m['active'])) $activeCount++;
+    foreach (load_events(day_start(time()), time(), $P['id']) as $e) if ($e['e'] === 'c' && !empty($e['m'])) $todayCl[$e['m']] = (isset($todayCl[$e['m']]) ? $todayCl[$e['m']] : 0) + 1;
+    $activeCount = 0; foreach ($P['managers'] as $m) if (!empty($m['active'])) $activeCount++;
 ?>
   <div class="card">
-    <h2>➕ Жаңа менеджер қосу</h2>
+    <h2>➕ «<?= h($P['name']) ?>» проектіне менеджер қосу</h2>
     <form method="post" class="row">
-      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="add">
-      <input type="text" name="name" placeholder="<?= count($cfg['managers']) + 1 ?>-менеджер (аты)" style="flex:1;min-width:160px" maxlength="40">
+      <?= csrf_field() ?><input type="hidden" name="a" value="add">
+      <input type="text" name="name" placeholder="<?= count($P['managers']) + 1 ?>-менеджер (аты)" style="flex:1;min-width:160px" maxlength="40">
       <input type="tel" name="phone" placeholder="WhatsApp нөмірі: 87051234567" required style="flex:1;min-width:180px">
       <button class="btn">Қосу</button>
     </form>
@@ -448,25 +525,25 @@ elseif ($tab === 'managers'):
   <div class="card">
     <h2>👥 Менеджерлер тізімі</h2>
     <p class="muted" style="margin-bottom:6px">
-      Өтінімдер <b>белсенді</b> менеджерлерге <?= $cfg['mode'] === 'random' ? '<b>кездейсоқ</b>' : '<b>кезекпен</b> (1 → 2 → 3 → 1 …)' ?> таратылады.
+      Өтінімдер <b>белсенді</b> менеджерлерге <?= $P['mode'] === 'random' ? '<b>кездейсоқ</b>' : '<b>кезекпен</b> (1 → 2 → 3 → 1 …)' ?> таратылады.
       Қазір белсенді: <b><?= $activeCount ?></b>. Бір клиент қайта басса — сол менеджерге түседі.
     </p>
-    <p class="muted" style="margin-bottom:6px">🔗 <b>Жеке сілтеме</b> — менеджер оны өз жарнамасына, сторисіне немесе клиентке жібере алады. Сол сілтемемен кірген клиент кезекке түспей, <b>тікелей сол менеджерге</b> жазады. Менеджер тоқтатылған болса, клиент әдеттегідей кезекпен бөлінеді.</p>
-    <?php if (!$cfg['managers']): ?><p class="muted">Менеджер жоқ. Жоғарыдан қосыңыз.</p><?php endif; ?>
-    <?php foreach ($cfg['managers'] as $i => $m): $on = !empty($m['active']); $fid = 'f' . h($m['id']); ?>
+    <p class="muted" style="margin-bottom:6px">🔗 <b>Жеке сілтеме</b> — сол сілтемемен кірген клиент кезекке түспей, <b>тікелей сол менеджерге</b> жазады.</p>
+    <?php if (!$P['managers']): ?><p class="flash err">Менеджер жоқ — сайттағы батырма жұмыс істемейді. Жоғарыдан қосыңыз.</p><?php endif; ?>
+    <?php foreach ($P['managers'] as $i => $m): $on = !empty($m['active']); $fid = 'f' . h($m['id']); ?>
       <div class="mg <?= $on ? '' : 'off' ?>">
         <div class="num"><?= $i + 1 ?></div>
         <input type="text" name="name" value="<?= h($m['name']) ?>" form="<?= $fid ?>" maxlength="40">
         <input type="tel" name="phone" value="<?= h($m['phone']) ?>" form="<?= $fid ?>">
         <div class="acts">
           <span class="pill <?= $on ? 'on' : 'off' ?>"><?= $on ? 'Белсенді' : 'Тоқтатылған' ?></span>
-          <span class="muted" title="Бүгінгі басулар">бүгін: <b><?= isset($todayCl[$m['id']]) ? $todayCl[$m['id']] : 0 ?></b></span>
-          <form method="post" id="<?= $fid ?>"><input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="save"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm">Сақтау</button></form>
-          <form method="post"><input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="toggle"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray"><?= $on ? '⏸ Тоқтату' : '▶ Қосу' ?></button></form>
-          <form method="post"><input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="up"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray" title="Жоғары">↑</button></form>
-          <form method="post"><input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="down"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray" title="Төмен">↓</button></form>
-          <a class="btn sm gray" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/<?= h($m['phone']) ?>" title="Нөмірді тексеру">WA</a>
-          <form method="post" onsubmit="return confirm('<?= h($m['name']) ?> өшірілсін бе?')"><input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="del"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm red">Өшіру</button></form>
+          <span class="muted">бүгін: <b><?= isset($todayCl[$m['id']]) ? $todayCl[$m['id']] : 0 ?></b></span>
+          <form method="post" id="<?= $fid ?>"><?= csrf_field() ?><input type="hidden" name="a" value="save"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm">Сақтау</button></form>
+          <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="toggle"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray"><?= $on ? '⏸ Тоқтату' : '▶ Қосу' ?></button></form>
+          <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="up"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray" title="Жоғары">↑</button></form>
+          <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="down"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray" title="Төмен">↓</button></form>
+          <a class="btn sm gray" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/<?= h($m['phone']) ?>">WA</a>
+          <form method="post" onsubmit="return confirm('<?= h($m['name']) ?> өшірілсін бе?')"><?= csrf_field() ?><input type="hidden" name="a" value="del"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm red">Өшіру</button></form>
         </div>
         <div class="mlink">
           <span class="muted">🔗 Жеке сілтеме:</span>
@@ -478,59 +555,140 @@ elseif ($tab === 'managers'):
   </div>
 
 <?php
-/* ================= БАПТАУЛАР ================= */
-else: ?>
+/* ================= САЙТ (мәтін, фото, пиксель) ================= */
+elseif ($tab === 'site'): ?>
   <div class="card">
-    <h2>💬 WhatsApp баптаулары</h2>
-    <form method="post">
-      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="settings">
-      <label>Клиент WhatsApp ашқанда автоматты жазылатын мәтін</label>
-      <textarea name="message" maxlength="500"><?= h($cfg['message']) ?></textarea>
-      <label>Өтінімдерді тарату тәсілі</label>
-      <label class="radio"><input type="radio" name="mode" value="rr" <?= $cfg['mode'] !== 'random' ? 'checked' : '' ?>> <span><b>Кезекпен</b> — 1-менеджер, 2-менеджер, 3-менеджер, қайтадан 1… (әділ бөлінеді)</span></label>
-      <label class="radio"><input type="radio" name="mode" value="random" <?= $cfg['mode'] === 'random' ? 'checked' : '' ?>> <span><b>Кездейсоқ</b> — әр басуда кездейсоқ менеджер</span></label>
-      <button class="btn" style="margin-top:10px">Сақтау</button>
-    </form>
-  </div>
+    <h2>✏️ «<?= h($P['name']) ?>» сайты</h2>
+    <div class="mlink" style="margin-bottom:6px">
+      <span class="muted">Сайт сілтемесі:</span>
+      <input type="text" readonly value="<?= h($land) ?>" onclick="this.select()">
+      <button type="button" class="btn sm gray" onclick="cp(this)">Көшіру</button>
+      <a class="btn sm" style="text-decoration:none" href="<?= h($land) ?>" target="_blank">Ашу</a>
+    </div>
+    <form method="post" enctype="multipart/form-data">
+      <?= csrf_field() ?><input type="hidden" name="a" value="site">
 
-  <div class="card">
-    <h2>📈 Пиксельдер</h2>
-    <p class="muted">ID жазып «Сақтау» басыңыз — сайтқа бірден қосылады. Бірнеше пиксель болса, үтірмен бөліп жазыңыз. Өшіру үшін өрісті бос қалдырыңыз.</p>
-    <form method="post">
-      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="pixels">
+      <h3 class="sec">Негізгі</h3>
+      <label>Проект аты (тек админде көрінеді)</label>
+      <input type="text" name="name" value="<?= h($P['name']) ?>" maxlength="60" required>
+      <label>Сілтеме: <?= h($base) ?><b>…</b>/</label>
+      <input type="text" name="slug" value="<?= h($P['slug']) ?>" maxlength="30" pattern="[a-z0-9][a-z0-9\-]{1,29}" required>
+      <p class="muted">Тек латын әріп, сан және «-». Өзгертсеңіз, ескі сілтеме жұмыс істемей қалады — жарнамадағы сілтемені де ауыстырыңыз.</p>
+      <label class="radio"><input type="checkbox" name="active" value="1" <?= $P['active'] ? 'checked' : '' ?>> <span>Сайт қосулы (белгіні алсаңыз, сайт уақытша жабылады)</span></label>
+
+      <h3 class="sec">Сайттағы мәтіндер</h3>
+      <label>Жоғарғы жазу (жасыл)</label>
+      <input type="text" name="top" value="<?= h($P['top']) ?>" maxlength="120" placeholder="Мысалы: БЕЛ ЖӘНЕ ОМЫРТҚА АУРУЛАРЫН ЕМДЕЙДІ">
+      <label>Тақырып (қара)</label>
+      <input type="text" name="title" value="<?= h($P['title']) ?>" maxlength="200">
+      <label>Тақырыптың жасыл бөлігі</label>
+      <input type="text" name="title_hl" value="<?= h($P['title_hl']) ?>" maxlength="100">
+      <label>Батырма жазуы</label>
+      <input type="text" name="button" value="<?= h($P['button']) ?>" maxlength="40">
+      <label>Батырма астындағы жазу</label>
+      <input type="text" name="hint" value="<?= h($P['hint']) ?>" maxlength="120" placeholder="Бос қалдырсаңыз, көрінбейді">
+      <p class="muted">Кез келген жазуды бос қалдырсаңыз, сайтта көрінбейді.</p>
+
+      <h3 class="sec">Фото</h3>
+      <div class="preview">
+        <?php if ($P['img']): ?><img src="<?= h($P['img']) ?>" alt=""><?php else: ?><span class="muted">Фото жоқ</span><?php endif; ?>
+        <div>
+          <input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+          <p class="muted">JPG, PNG немесе WEBP. Сурет өзі ортасынан кесіліп, <b>540×560</b> өлшемге келтіріледі және жылдам ашылу үшін сығылады (Saumed-тағыдай).</p>
+          <?php if ($P['img']): ?><label class="radio"><input type="checkbox" name="photo_del" value="1"> <span>Фотоны алып тастау</span></label><?php endif; ?>
+        </div>
+      </div>
+
+      <h3 class="sec">WhatsApp</h3>
+      <label>Клиент WhatsApp ашқанда автоматты жазылатын мәтін</label>
+      <textarea name="message" maxlength="500"><?= h($P['message']) ?></textarea>
+      <label>Өтінімдерді тарату тәсілі</label>
+      <label class="radio"><input type="radio" name="mode" value="rr" <?= $P['mode'] !== 'random' ? 'checked' : '' ?>> <span><b>Кезекпен</b> — 1, 2, 3, қайтадан 1…</span></label>
+      <label class="radio"><input type="radio" name="mode" value="random" <?= $P['mode'] === 'random' ? 'checked' : '' ?>> <span><b>Кездейсоқ</b></span></label>
+
+      <h3 class="sec">📈 Пиксельдер (тек осы проектке)</h3>
       <label>TikTok Pixel ID</label>
-      <input type="text" name="tt_ids" value="<?= h($cfg['tt_ids']) ?>" placeholder="Мысалы: DBCM57BC77U4J2JQ97R0" autocomplete="off">
+      <input type="text" name="tt_ids" value="<?= h($P['tt_ids']) ?>" placeholder="Бірнешеу болса — үтірмен" autocomplete="off">
       <label>TikTok: батырма басылғандағы оқиға</label>
       <select name="tt_event">
         <?php foreach (['ClickButton' => 'ClickButton — батырманы басу', 'Contact' => 'Contact — байланыс', 'SubmitForm' => 'SubmitForm — өтінім жіберу', 'Lead' => 'Lead — лид', 'CompleteRegistration' => 'CompleteRegistration — тіркелу'] as $k => $v): ?>
-          <option value="<?= $k ?>" <?= $cfg['tt_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+          <option value="<?= $k ?>" <?= $P['tt_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
         <?php endforeach; ?>
       </select>
-      <label style="margin-top:16px">Meta (Facebook / Instagram) Pixel ID</label>
-      <input type="text" name="fb_ids" value="<?= h($cfg['fb_ids']) ?>" placeholder="Мысалы: 1234567890123456" inputmode="numeric" autocomplete="off">
+      <label>Meta (Facebook / Instagram) Pixel ID</label>
+      <input type="text" name="fb_ids" value="<?= h($P['fb_ids']) ?>" placeholder="Мысалы: 1234567890123456" inputmode="numeric" autocomplete="off">
       <label>Meta: батырма басылғандағы оқиға</label>
       <select name="fb_event">
         <?php foreach (['Lead' => 'Lead — лид', 'Contact' => 'Contact — байланыс', 'SubmitApplication' => 'SubmitApplication — өтінім', 'CompleteRegistration' => 'CompleteRegistration — тіркелу'] as $k => $v): ?>
-          <option value="<?= $k ?>" <?= $cfg['fb_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+          <option value="<?= $k ?>" <?= $P['fb_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
         <?php endforeach; ?>
       </select>
-      <p class="muted" style="margin-top:10px">Сайт ашылғанда PageView, WhatsApp батырмасы басылғанда — таңдалған оқиға жіберіледі.</p>
-      <button class="btn" style="margin-top:10px">Сақтау</button>
+
+      <button class="btn" style="margin-top:18px;width:100%;min-height:48px">💾 Барлығын сақтау</button>
     </form>
   </div>
 
   <div class="card">
     <h2>🔗 Жарнамаға арналған сілтемелер</h2>
-    <p>Сайттың негізгі сілтемесі: <a href="<?= h($land) ?>" target="_blank"><b><?= h($land) ?></b></a></p>
-    <p class="muted" style="margin-top:8px">Әр жарнамаға осындай сілтеме қойсаңыз, аналитикада қайдан келгені нақты көрінеді:</p>
-    <p style="margin-top:8px"><code><?= h($land) ?>?utm_source=tiktok&amp;utm_campaign=bel1</code></p>
-    <p style="margin-top:6px"><code><?= h($land) ?>?utm_source=instagram&amp;utm_campaign=reels2</code></p>
+    <p class="muted">Әр жарнамаға осындай сілтеме қойсаңыз, аналитикада қайдан келгені көрінеді:</p>
+    <p style="margin-top:8px"><code><?= h($land) ?>?utm_source=tiktok&amp;utm_campaign=jarnama1</code></p>
+    <p style="margin-top:6px"><code><?= h($land) ?>?utm_source=instagram&amp;utm_campaign=reels1</code></p>
+  </div>
+
+<?php
+/* ================= ПРОЕКТТЕР ================= */
+elseif ($tab === 'projects'):
+    $t0 = day_start(time()); $today = load_events($t0, time());
+    $stat = [];
+    foreach ($today as $e) { $k = ev_pid($e); if (!isset($stat[$k])) $stat[$k] = [0, 0]; $stat[$k][$e['e'] === 'c' ? 1 : 0]++; }
+?>
+  <div class="card">
+    <h2>📁 Проекттер</h2>
+    <?php foreach ($cfg['projects'] as $p): $s = isset($stat[$p['id']]) ? $stat[$p['id']] : [0, 0]; $mc = 0; foreach ($p['managers'] as $m) if (!empty($m['active'])) $mc++; ?>
+      <div class="pj <?= $p['id'] === $P['id'] ? 'cur' : '' ?>">
+        <div>
+          <b><?= h($p['name']) ?></b> <?= $p['active'] ? '' : '<span class="pill off">жабық</span>' ?><br>
+          <a class="muted" href="<?= h($base . $p['slug'] . '/') ?>" target="_blank"><?= h($base . $p['slug'] . '/') ?></a><br>
+          <span class="muted">Бүгін: кіру <b><?= $s[0] ?></b> · басу <b><?= $s[1] ?></b> · белсенді менеджер: <b><?= $mc ?></b></span>
+        </div>
+        <a class="btn sm <?= $p['id'] === $P['id'] ? 'gray' : '' ?>" style="text-decoration:none" href="?p=<?= h($p['id']) ?>&tab=site"><?= $p['id'] === $P['id'] ? 'Ашық' : 'Ашу' ?></a>
+      </div>
+    <?php endforeach; ?>
   </div>
 
   <div class="card">
+    <h2>➕ Жаңа проект ашу</h2>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="proj_add">
+      <label>Проект аты</label>
+      <input type="text" name="name" required maxlength="60" placeholder="Мысалы: Тізе бандажы">
+      <label>Сілтеме: <?= h($base) ?><b>…</b>/</label>
+      <input type="text" name="slug" required maxlength="30" pattern="[a-z0-9][a-z0-9\-]{1,29}" placeholder="Мысалы: tize">
+      <label>Бірінші менеджердің WhatsApp нөмірі (кейін тағы қосасыз)</label>
+      <input type="tel" name="phone" placeholder="87051234567">
+      <button class="btn" style="margin-top:12px">Проект ашу</button>
+    </form>
+  </div>
+
+  <?php if (count($cfg['projects']) > 1): ?>
+  <div class="card">
+    <h2>🗑 «<?= h($P['name']) ?>» проектін өшіру</h2>
+    <p class="muted">Сайт жабылады, баптаулары өшеді. Статистикасы файлда қалады.</p>
+    <form method="post" class="row" style="margin-top:10px" onsubmit="return confirm('Проект өшірілсін бе?')">
+      <?= csrf_field() ?><input type="hidden" name="a" value="proj_del">
+      <input type="text" name="confirm" placeholder="Растау үшін жазыңыз: <?= h($P['slug']) ?>" style="max-width:280px" required>
+      <button class="btn red">Өшіру</button>
+    </form>
+  </div>
+  <?php endif; ?>
+
+<?php
+/* ================= ЖАЛПЫ БАПТАУЛАР ================= */
+else: ?>
+  <div class="card">
     <h2>🔒 Құпиясөзді өзгерту</h2>
     <form method="post" style="max-width:380px">
-      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="pass">
+      <?= csrf_field() ?><input type="hidden" name="a" value="pass">
       <label>Қазіргі құпиясөз</label><input type="password" name="old" required autocomplete="current-password">
       <label>Жаңа құпиясөз</label><input type="password" name="p1" required minlength="6" autocomplete="new-password">
       <label>Жаңа құпиясөзді қайталаңыз</label><input type="password" name="p2" required minlength="6" autocomplete="new-password">
@@ -539,10 +697,10 @@ else: ?>
   </div>
 
   <div class="card">
-    <h2>🗑 Статистиканы тазалау</h2>
-    <p class="muted">Барлық кірулер мен басулар өшіріледі. Менеджерлер мен баптаулар сақталады.</p>
-    <form method="post" class="row" style="margin-top:10px" onsubmit="return confirm('Барлық статистика өшірілсін бе?')">
-      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="reset">
+    <h2>🗑 «<?= h($P['name']) ?>» статистикасын тазалау</h2>
+    <p class="muted">Тек осы проекттің кірулері мен басулары өшіріледі. Басқа проекттер, менеджерлер мен баптаулар сақталады.</p>
+    <form method="post" class="row" style="margin-top:10px" onsubmit="return confirm('Статистика өшірілсін бе?')">
+      <?= csrf_field() ?><input type="hidden" name="a" value="reset">
       <input type="text" name="confirm" placeholder="Растау үшін ИӘ деп жазыңыз" style="max-width:260px" required>
       <button class="btn red">Тазалау</button>
     </form>
