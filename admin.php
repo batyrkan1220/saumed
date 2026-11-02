@@ -10,6 +10,7 @@ session_start();
 
 ensure_data();
 $cfg = cfg();
+if (!file_exists(__DIR__ . '/px.js')) write_px($cfg);
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
 $CSRF = $_SESSION['csrf'];
 
@@ -212,6 +213,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cfg['mode'] = post('mode') === 'random' ? 'random' : 'rr';
         cfg_save($cfg);
         go_to('tab=settings', 'Баптаулар сақталды ✓');
+    }
+    if ($a === 'pixels') {
+        $tt = px_list(strtoupper(post('tt_ids')), '/^[A-Z0-9]{8,30}$/');
+        $fb = px_list(post('fb_ids'), '/^\d{8,20}$/');
+        $cfg['tt_ids'] = implode(', ', $tt);
+        $cfg['fb_ids'] = implode(', ', $fb);
+        $cfg['tt_event'] = in_array(post('tt_event'), ['ClickButton', 'Contact', 'SubmitForm', 'Lead', 'CompleteRegistration'], true) ? post('tt_event') : 'ClickButton';
+        $cfg['fb_event'] = in_array(post('fb_event'), ['Lead', 'Contact', 'SubmitApplication', 'CompleteRegistration'], true) ? post('fb_event') : 'Lead';
+        cfg_save($cfg);
+        if (!file_exists(__DIR__ . '/px.js')) go_to('tab=settings', '⚠️ px.js файлын жазу мүмкін болмады. Сайт папкасына жазу рұқсатын тексеріңіз.');
+        go_to('tab=settings', 'Пиксельдер сақталды ✓ Сайтта бірден жұмыс істейді');
     }
     if ($a === 'pass') {
         if (!password_verify(post('old'), $cfg['password'])) go_to('tab=settings', '⚠️ Қазіргі құпиясөз қате');
@@ -477,6 +489,32 @@ else: ?>
       <label>Өтінімдерді тарату тәсілі</label>
       <label class="radio"><input type="radio" name="mode" value="rr" <?= $cfg['mode'] !== 'random' ? 'checked' : '' ?>> <span><b>Кезекпен</b> — 1-менеджер, 2-менеджер, 3-менеджер, қайтадан 1… (әділ бөлінеді)</span></label>
       <label class="radio"><input type="radio" name="mode" value="random" <?= $cfg['mode'] === 'random' ? 'checked' : '' ?>> <span><b>Кездейсоқ</b> — әр басуда кездейсоқ менеджер</span></label>
+      <button class="btn" style="margin-top:10px">Сақтау</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>📈 Пиксельдер</h2>
+    <p class="muted">ID жазып «Сақтау» басыңыз — сайтқа бірден қосылады. Бірнеше пиксель болса, үтірмен бөліп жазыңыз. Өшіру үшін өрісті бос қалдырыңыз.</p>
+    <form method="post">
+      <input type="hidden" name="csrf" value="<?= h($CSRF) ?>"><input type="hidden" name="a" value="pixels">
+      <label>TikTok Pixel ID</label>
+      <input type="text" name="tt_ids" value="<?= h($cfg['tt_ids']) ?>" placeholder="Мысалы: DBCM57BC77U4J2JQ97R0" autocomplete="off">
+      <label>TikTok: батырма басылғандағы оқиға</label>
+      <select name="tt_event">
+        <?php foreach (['ClickButton' => 'ClickButton — батырманы басу', 'Contact' => 'Contact — байланыс', 'SubmitForm' => 'SubmitForm — өтінім жіберу', 'Lead' => 'Lead — лид', 'CompleteRegistration' => 'CompleteRegistration — тіркелу'] as $k => $v): ?>
+          <option value="<?= $k ?>" <?= $cfg['tt_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <label style="margin-top:16px">Meta (Facebook / Instagram) Pixel ID</label>
+      <input type="text" name="fb_ids" value="<?= h($cfg['fb_ids']) ?>" placeholder="Мысалы: 1234567890123456" inputmode="numeric" autocomplete="off">
+      <label>Meta: батырма басылғандағы оқиға</label>
+      <select name="fb_event">
+        <?php foreach (['Lead' => 'Lead — лид', 'Contact' => 'Contact — байланыс', 'SubmitApplication' => 'SubmitApplication — өтінім', 'CompleteRegistration' => 'CompleteRegistration — тіркелу'] as $k => $v): ?>
+          <option value="<?= $k ?>" <?= $cfg['fb_event'] === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="muted" style="margin-top:10px">Сайт ашылғанда PageView, WhatsApp батырмасы басылғанда — таңдалған оқиға жіберіледі.</p>
       <button class="btn" style="margin-top:10px">Сақтау</button>
     </form>
   </div>

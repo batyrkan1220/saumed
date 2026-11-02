@@ -43,6 +43,10 @@ function cfg_default() {
         'message'  => 'Бандаж бойынша жазып тұрмын',
         'mode'     => 'rr',
         'fallback' => '77057636135',
+        'tt_ids'   => 'DBCM57BC77U4J2JQ97R0',   // TikTok пиксель ID (бірнешеу болса — үтірмен)
+        'tt_event' => 'ClickButton',
+        'fb_ids'   => '',                       // Meta (Facebook/Instagram) пиксель ID
+        'fb_event' => 'Lead',
         'managers' => [
             ['id' => 'm1', 'name' => '1-менеджер', 'phone' => '77057636135', 'active' => true],
         ],
@@ -55,7 +59,7 @@ function cfg() {
     return array_merge(cfg_default(), $c);
 }
 
-function cfg_save($c) { return store_write('config', $c); }
+function cfg_save($c) { $ok = store_write('config', $c); write_px($c); return $ok; }
 
 function log_event($e) {
     ensure_data();
@@ -169,3 +173,40 @@ function nocache() {
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function ldate($fmt, $ts) { return gmdate($fmt, $ts + TZ); }
 function day_start($ts) { return (int)(floor(($ts + TZ) / 86400) * 86400 - TZ); }
+
+/* ---------- Пиксельдер: админде сақталғанда px.js файлы жасалады ---------- */
+function px_list($s, $re) {
+    $out = [];
+    foreach (preg_split('/[\s,;]+/', (string)$s) as $id) {
+        if ($id !== '' && preg_match($re, $id)) $out[] = $id;
+    }
+    return array_values(array_unique($out));
+}
+
+function write_px($c) {
+    $tt = px_list($c['tt_ids'], '/^[A-Z0-9]{8,30}$/');
+    $fb = px_list($c['fb_ids'], '/^\d{8,20}$/');
+    $te = preg_replace('/[^A-Za-z]/', '', $c['tt_event']) ?: 'ClickButton';
+    $fe = preg_replace('/[^A-Za-z]/', '', $c['fb_event']) ?: 'Lead';
+    $js = "/* Админ беттен автоматты жасалған файл. Қолмен өзгертпеңіз. */\n(function(w,d){\n";
+    $js .= 'var TT=' . json_encode($tt) . ',TE=' . json_encode($te) . ',FB=' . json_encode($fb) . ',FE=' . json_encode($fe) . ";\n";
+    if ($tt) {
+        $js .= <<<'JS'
+!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=d.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=d.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+for(var k=0;k<TT.length;k++)ttq.load(TT[k]);ttq.page();}(w,d,'ttq');
+
+JS;
+    }
+    if ($fb) {
+        $js .= <<<'JS'
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
+for(var j=0;j<FB.length;j++)fbq('init',FB[j]);fbq('track','PageView');
+
+JS;
+    }
+    $js .= "w.__pxClick=function(){if(TT.length&&w.ttq)w.ttq.track(TE);if(FB.length&&w.fbq)w.fbq('track',FE);};\n})(window,document);\n";
+    $f = __DIR__ . '/px.js';
+    $tmp = $f . '.' . mt_rand(1000, 9999) . '.tmp';
+    if (@file_put_contents($tmp, $js) === false) return false;
+    return @rename($tmp, $f);
+}

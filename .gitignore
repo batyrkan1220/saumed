@@ -2,3 +2,7 @@
 data/*
 !data/.htaccess
 !data/index.html
+
+# Админ жасайтын пиксель файлы
+px.js
+px.js.*.tmp

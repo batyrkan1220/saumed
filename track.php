@@ -3,6 +3,7 @@
 define('APP', 1);
 require __DIR__ . '/lib.php';
 nocache();
+if (!file_exists(__DIR__ . '/px.js')) write_px(cfg());
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !is_bot()) {
     log_event([
