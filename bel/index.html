@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Бел ауруына арналған бандаж — бағасын білу</title>
+  <meta name="description" content="Бел ауруына арналған бандаж. Бағасын біліп, тегін кеңес алу үшін WhatsApp-қа жазыңыз.">
+  <meta name="theme-color" content="#25d366">
+  <meta property="og:title" content="Бел ауруына арналған бандаж">
+  <meta property="og:description" content="Бағасын біліп, ақпарат алу үшін WhatsApp-қа жазыңыз">
+
+  <meta property="og:image" content="../img/bandaj.jpg">
+  <link rel="preload" as="image" href="../img/bandaj.webp" type="image/webp" fetchpriority="high">
+  <link rel="preconnect" href="https://wa.me">
+  <link rel="preconnect" href="https://analytics.tiktok.com">
+
+<!-- TikTok Pixel Code Start -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+  ttq.load('DBCM57BC77U4J2JQ97R0');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
+<!-- TikTok Pixel Code End -->
+
+<!-- Facebook/Instagram Pixel керек болса: төмендегі блоктың басы мен соңындағы белгілерді алып тастап, ВАШ_PIXEL_ID орнына өз ID-іңізді жазыңыз
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','ВАШ_PIXEL_ID');fbq('track','PageView');
+</script>
+-->
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+    body{
+      background:
+        radial-gradient(120% 60% at 50% 0%, #dcfce7 0%, rgba(220,252,231,0) 60%),
+        radial-gradient(80% 50% at 100% 100%, #ecfeff 0%, rgba(236,254,255,0) 70%),
+        #ffffff;
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      min-height:100vh;min-height:100dvh;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      color:#0f172a;
+      padding:calc(20px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+      overflow-x:hidden;touch-action:manipulation;
+    }
+
+    .card{
+      width:100%;max-width:420px;text-align:center;
+      display:flex;flex-direction:column;align-items:center;
+      background:rgba(255,255,255,.75);
+      -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+      border:1px solid rgba(15,23,42,.06);
+      border-radius:28px;
+      padding:clamp(22px,6vw,32px) clamp(18px,5vw,26px) clamp(20px,5vw,26px);
+      box-shadow:0 20px 50px -20px rgba(16,94,52,.25),0 2px 6px rgba(15,23,42,.04);
+      animation:rise .5s ease-out both;
+    }
+
+    .status-badge{
+      display:inline-flex;align-items:center;gap:8px;
+      background:rgba(37,211,102,.14);color:#0d7a37;
+      padding:7px 13px;border-radius:999px;white-space:nowrap;max-width:100%;
+      font-size:clamp(9px,2.9vw,13px);font-weight:800;letter-spacing:.2px;
+      margin-bottom:clamp(14px,3.5vh,20px);
+    }
+    .pulse-dot{width:8px;height:8px;background:#25d366;border-radius:50%;flex-shrink:0;
+      box-shadow:0 0 0 0 rgba(37,211,102,.7);animation:pulse-ring 1.8s infinite}
+
+    /* Тауар суреті */
+    .photo{
+      position:relative;width:100%;
+      background:linear-gradient(180deg,#f2f1f6 0%,#f4f5f8 55%,#f7fafd 100%);
+      border-radius:20px;overflow:hidden;
+      margin-bottom:10px;
+    }
+    .photo img{
+      display:block;width:auto;max-width:100%;height:min(36vh,300px);margin:0 auto;
+      object-fit:contain;object-position:center;
+      -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%);
+      mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%);
+      animation:float 4s ease-in-out infinite;
+    }
+    .photo .sale{
+      position:absolute;top:10px;left:10px;
+      background:#0f172a;color:#fff;font-size:11px;font-weight:800;letter-spacing:.4px;
+      padding:5px 10px;border-radius:999px;
+    }
+    .feats{
+      list-style:none;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+      margin-bottom:clamp(14px,3vh,18px);
+    }
+    .feats li{
+      background:#f1f5f9;color:#334155;border-radius:14px;
+      padding:7px 4px;font-size:clamp(10.5px,3vw,12px);font-weight:700;line-height:1.2;
+    }
+    .feats b{display:block;font-size:clamp(16px,4.6vw,18px);font-weight:900;color:#0e8f55;line-height:1.1;margin-bottom:2px}
+
+    .title{
+      font-size:clamp(19px,5.6vw,26px);font-weight:900;line-height:1.22;letter-spacing:-.4px;
+      margin-bottom:clamp(14px,3vh,20px);text-transform:uppercase;word-break:break-word;
+    }
+
+    /* Төменде жабысып тұратын батырма */
+    .sticky{
+      position:fixed;left:0;right:0;bottom:0;z-index:20;
+      padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+      background:rgba(255,255,255,.92);
+      -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+      border-top:1px solid rgba(15,23,42,.06);
+      transform:translateY(110%);transition:transform .25s ease;
+    }
+    .sticky.show{transform:none}
+    .sticky .wa-btn{max-width:420px;margin:0 auto;min-height:56px;animation:none}
+    .sticky .wa-btn::after{display:none}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+    .title .hl{
+      color:#0e8f55;
+      background:linear-gradient(transparent 62%, rgba(37,211,102,.22) 62%);
+      padding:0 2px;
+    }
+    .down-hand{display:inline-block;animation:bounce 1.2s infinite ease-in-out;margin-left:2px}
+
+    .wa-btn{
+      position:relative;overflow:hidden;
+      width:100%;min-height:66px;
+      background:linear-gradient(135deg,#2fe073 0%,#1ea952 100%);
+      color:#fff!important;text-decoration:none;border-radius:18px;
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      padding:14px 16px 14px 18px;
+      font-size:clamp(16px,4.6vw,19px);font-weight:800;letter-spacing:.2px;
+      box-shadow:0 14px 30px rgba(37,211,102,.35),0 4px 0 #128c46;
+      transition:transform .1s ease,box-shadow .1s ease;
+      animation:button-pulse 2.2s infinite ease-in-out;
+      cursor:pointer;user-select:none;-webkit-user-select:none;
+    }
+    .wa-btn::after{ /* жылтыр жарық */
+      content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+      background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);
+      transform:skewX(-20deg);animation:shine 3s infinite;
+    }
+    .wa-btn:active{transform:translateY(3px);box-shadow:0 4px 12px rgba(37,211,102,.25),0 1px 0 #128c46}
+    .wa-btn.loading{animation:none;opacity:.92}
+    .wa-icon{width:28px;height:28px;flex-shrink:0;fill:#fff}
+    .btn-label{flex:1;text-align:center}
+    .wa-arrow{font-size:20px;background:rgba(255,255,255,.25);width:34px;height:34px;
+      display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0}
+    .loading .wa-arrow{animation:spin .8s linear infinite}
+
+    @keyframes pulse-ring{0%{transform:scale(.95);box-shadow:0 0 0 0 rgba(37,211,102,.7)}70%{transform:scale(1);box-shadow:0 0 0 8px rgba(37,211,102,0)}100%{transform:scale(.95);box-shadow:0 0 0 0 rgba(37,211,102,0)}}
+    @keyframes button-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+    @keyframes shine{0%{left:-60%}55%,100%{left:130%}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+    @media (max-height:600px){
+      body{justify-content:flex-start}
+      .title{margin-bottom:16px}
+      .wa-btn{min-height:56px}
+    }
+    @media (prefers-reduced-motion:reduce){
+      *,*::after{animation:none!important}
+    }
+  </style>
+</head>
+<body>
+
+  <main class="card">
+    <div class="status-badge">
+      <span class="pulse-dot"></span>
+      БЕЛ ЖӘНЕ ОМЫРТҚА АУРУЛАРЫН ЕМДЕЙДІ
+    </div>
+
+    <div class="photo">
+      <picture>
+        <source srcset="../img/bandaj.webp" type="image/webp">
+        <img src="../img/bandaj.jpg" width="720" height="747" alt="Бел ауруына арналған ортопедиялық бандаж" fetchpriority="high" decoding="async">
+      </picture>
+      <span class="sale">ОРТОПЕДИЯЛЫҚ БАНДАЖ</span>
+    </div>
+
+    <ul class="feats">
+      <li><b>4</b>металл пластина</li>
+      <li><b>3</b>ауыстырмалы жастықша</li>
+      <li><b>🌬</b>тыныс алатын тор мата</li>
+    </ul>
+
+    <h1 class="title">
+      БАҒАСЫН БІЛІП ТОЛЫҚ АҚПАРАТ АЛУ ҮШІН <span class="hl">БАТЫРМАНЫ БАСЫҢЫЗ</span>
+      <span class="down-hand">👇</span>
+    </h1>
+
+    <a id="waBtn" href="../go.php" class="wa-btn js-wa" aria-label="WhatsApp арқылы жазу">
+      <svg class="wa-icon" viewBox="0 0 32 32" aria-hidden="true">
+        <path id="waPath" d="M16.003 3C9.373 3 4 8.373 4 15c0 2.385.697 4.607 1.894 6.48L4 29l7.7-1.857A11.94 11.94 0 0 0 16.003 27C22.63 27 28 21.627 28 15S22.63 3 16.003 3zm0 21.8a9.77 9.77 0 0 1-5.03-1.390l-.36-.214-4.57 1.1 1.14-4.45-.236-.376A9.760 9.760 0 0 1 6.2 15c0-5.413 4.39-9.8 9.803-9.8S25.8 9.587 25.8 15s-4.384 9.8-9.797 9.8zm5.37-7.34c-.294-.147-1.74-.858-2.01-.956-.27-.098-.466-.147-.662.148-.196.294-.76.956-.932 1.153-.172.196-.343.22-.637.073-.294-.147-1.242-.458-2.366-1.46-.874-.78-1.465-1.744-1.637-2.038-.172-.294-.018-.453.13-.6.132-.132.294-.343.44-.515.148-.172.197-.294.295-.49.098-.197.05-.368-.025-.515-.074-.147-.662-1.595-.907-2.184-.239-.574-.482-.496-.662-.505l-.564-.01c-.196 0-.515.073-.784.368-.27.294-1.03 1.007-1.03 2.455s1.055 2.848 1.202 3.044c.147.196 2.076 3.17 5.03 4.446.703.303 1.252.484 1.68.62.706.224 1.35.192 1.858.116.567-.085 1.74-.71 1.985-1.397.245-.687.245-1.276.172-1.397-.074-.123-.27-.196-.564-.343z"/>
+      </svg>
+      <span id="btnText" class="btn-label">WHATSAPP-ҚА ӨТУ</span>
+      <span class="wa-arrow">→</span>
+    </a>
+  </main>
+
+  <div class="sticky" id="sticky" aria-hidden="true">
+    <a href="../go.php" class="wa-btn js-wa" tabindex="-1">
+      <svg class="wa-icon" viewBox="0 0 32 32" aria-hidden="true"><use href="#waPath"/></svg>
+      <span class="btn-label">БАҒАСЫН БІЛУ</span>
+      <span class="wa-arrow">→</span>
+    </a>
+  </div>
+
+<script>
+(function () {
+  var btn = document.getElementById('waBtn');
+  var btnText = document.getElementById('btnText');
+  var LABEL = btnText.textContent;
+  var busy = false;
+
+  function sget(s, k) { try { return s.getItem(k); } catch (e) { return null; } }
+  function sset(s, k, v) { try { s.setItem(k, v); } catch (e) {} }
+  var LS = window.localStorage, SS = window.sessionStorage;
+
+  // Келушінің ID-і (бірегей келушілерді санау үшін)
+  var vid = sget(LS, 'vid');
+  if (!vid) { vid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10); sset(LS, 'vid', vid); }
+  document.cookie = 'vid=' + vid + ';path=/;max-age=31536000;samesite=lax';
+
+  // Қайдан келгенін анықтау (utm_source, ttclid, fbclid, referrer)
+  var q = new URLSearchParams(location.search);
+  var src = (q.get('utm_source') || '').toLowerCase();
+  if (!src) {
+    if (q.get('ttclid')) src = 'tiktok';
+    else if (q.get('fbclid')) src = 'facebook';
+    else if (q.get('gclid')) src = 'google';
+  }
+  if (!src && document.referrer) {
+    try {
+      var host = new URL(document.referrer).hostname.replace(/^www\./, '');
+      if (host && host !== location.hostname) {
+        var known = ['tiktok', 'instagram', 'facebook', 'google', 'youtube', 'vk', 'yandex', 'telegram'];
+        src = host;
+        for (var i = 0; i < known.length; i++) if (host.indexOf(known[i]) > -1) { src = known[i]; break; }
+      }
+    } catch (e) {}
+  }
+  src = src || sget(SS, 'src') || '';
+  sset(SS, 'src', src);
+  var cmp = (q.get('utm_campaign') || sget(SS, 'cmp') || '').toLowerCase();
+  sset(SS, 'cmp', cmp);
+  // Менеджердің жеке сілтемесі (?m=m2)
+  var mg = (q.get('m') || sget(SS, 'm') || '').replace(/[^a-zA-Z0-9]/g, '');
+  sset(SS, 'm', mg);
+
+  // Кіруді тіркеу
+  try {
+    var fd = new FormData();
+    fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg);
+    if (navigator.sendBeacon) navigator.sendBeacon('../track.php', fd);
+    else fetch('../track.php', { method: 'POST', body: fd, keepalive: true });
+  } catch (e) {}
+
+  var url = '../go.php?vid=' + encodeURIComponent(vid) + '&src=' + encodeURIComponent(src) + '&cmp=' + encodeURIComponent(cmp) + (mg ? '&m=' + encodeURIComponent(mg) : '');
+  var btns = document.querySelectorAll('.js-wa');
+
+  for (var b = 0; b < btns.length; b++) {
+    btns[b].href = url;
+    btns[b].setAttribute('data-label', btns[b].querySelector('.btn-label').textContent);
+    btns[b].addEventListener('click', function (e) {
+      e.preventDefault();
+      if (busy) return;
+      busy = true;
+      this.querySelector('.btn-label').textContent = 'Ашылуда...';
+      this.classList.add('loading');
+
+      if (typeof window.fbq === 'function') window.fbq('track', 'SubmitApplication');
+      if (window.ttq && typeof window.ttq.track === 'function') window.ttq.track('ClickButton');
+
+      setTimeout(function () { window.location.href = url; }, 180);
+    });
+  }
+
+  // Негізгі батырма экраннан шығып кетсе — төменнен жабысқақ батырма шығады
+  var sticky = document.getElementById('sticky');
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (en) {
+      sticky.classList.toggle('show', !en[0].isIntersecting);
+    }).observe(btn);
+  }
+
+  // WhatsApp-тан артқа қайтқанда батырмалар қайта жұмыс істеуі үшін
+  window.addEventListener('pageshow', function () {
+    busy = false;
+    for (var b = 0; b < btns.length; b++) {
+      btns[b].querySelector('.btn-label').textContent = btns[b].getAttribute('data-label');
+      btns[b].classList.remove('loading');
+    }
+  });
+})();
+</script>
+</body>
+</html>

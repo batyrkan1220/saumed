@@ -233,6 +233,7 @@ $tab = isset($_GET['tab']) ? $_GET['tab'] : 'stats';
 if (!in_array($tab, ['stats', 'managers', 'settings'], true)) $tab = 'stats';
 
 $base = (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '') . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
+$land = $base . 'bel/';  // бандаж сайтының мекенжайы
 
 head_html('Админ панель');
 ?>
@@ -242,6 +243,7 @@ head_html('Админ панель');
     <a href="?tab=stats" class="<?= $tab === 'stats' ? 'on' : '' ?>">📊 Аналитика</a>
     <a href="?tab=managers" class="<?= $tab === 'managers' ? 'on' : '' ?>">👥 Менеджерлер</a>
     <a href="?tab=settings" class="<?= $tab === 'settings' ? 'on' : '' ?>">⚙️ Баптаулар</a>
+    <a href="bel/" target="_blank">🌐 Сайт</a>
     <a href="?logout=1" class="out">Шығу</a>
   </nav>
 </div></div>
@@ -456,7 +458,7 @@ elseif ($tab === 'managers'):
         </div>
         <div class="mlink">
           <span class="muted">🔗 Жеке сілтеме:</span>
-          <input type="text" readonly value="<?= h($base . '?m=' . $m['id']) ?>" onclick="this.select()">
+          <input type="text" readonly value="<?= h($land . '?m=' . $m['id']) ?>" onclick="this.select()">
           <button type="button" class="btn sm gray" onclick="cp(this)">Көшіру</button>
         </div>
       </div>
@@ -481,9 +483,10 @@ else: ?>
 
   <div class="card">
     <h2>🔗 Жарнамаға арналған сілтемелер</h2>
-    <p class="muted">Әр жарнамаға осындай сілтеме қойсаңыз, аналитикада қайдан келгені нақты көрінеді:</p>
-    <p style="margin-top:8px"><code><?= h($base) ?>?utm_source=tiktok&amp;utm_campaign=bel1</code></p>
-    <p style="margin-top:6px"><code><?= h($base) ?>?utm_source=instagram&amp;utm_campaign=reels2</code></p>
+    <p>Сайттың негізгі сілтемесі: <a href="<?= h($land) ?>" target="_blank"><b><?= h($land) ?></b></a></p>
+    <p class="muted" style="margin-top:8px">Әр жарнамаға осындай сілтеме қойсаңыз, аналитикада қайдан келгені нақты көрінеді:</p>
+    <p style="margin-top:8px"><code><?= h($land) ?>?utm_source=tiktok&amp;utm_campaign=bel1</code></p>
+    <p style="margin-top:6px"><code><?= h($land) ?>?utm_source=instagram&amp;utm_campaign=reels2</code></p>
   </div>
 
   <div class="card">
