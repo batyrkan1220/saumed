@@ -44,36 +44,52 @@ foreach ($body['messages'] as $msg) {
     $key = $chId . ':' . $client;
     $now = time();
     $inbound = empty($msg['isEcho']) && (isset($msg['status']) ? $msg['status'] === 'inbound' : true);
-    $text = isset($msg['text']) ? $msg['text'] : '';
+    $text = isset($msg['text']) ? (string)$msg['text'] : '';
+    $mtype = isset($msg['type']) ? $msg['type'] : 'text';
+    $name = isset($msg['contact']['name']) ? mb_substr((string)$msg['contact']['name'], 0, 60) : '';
+    $route = wz_route($c, $phone, $inbound ? $text : '');
+    $preview = $text !== '' ? $text : ['image' => '📷 Фото', 'video' => '🎥 Видео', 'audio' => '🎤 Аудио', 'document' => '📎 Файл', 'missing_call' => '📞 Пропущенный звонок', 'geo' => '📍 Геолокация', 'vcard' => '👤 Контакт'][$mtype] ?? '💬 Сообщение';
 
-    if ($inbound) {
-        // Клиенттен келген хабарлама: бірінші рет жазса — жаңа өтінім
-        $isNew = wz_chats_update(function (&$d) use ($key, $now) {
-            if (isset($d[$key])) { $d[$key]['last'] = $now; return false; }
-            $d[$key] = ['t' => $now, 'last' => $now];
-            return true;
-        });
-        if ($isNew) {
-            list($P, $M) = wz_route($c, $phone, $text);
-            if (!$P) continue;
-            $pid = $P['id'];
-            wz_chats_update(function (&$d) use ($key, $pid, $M) { $d[$key]['p'] = $pid; $d[$key]['m'] = $M ? $M['id'] : ''; });
-            $tn = norm_text($text); $mn0 = norm_text($P['message']);
-            $st = ($mn0 !== '' && $tn !== '' && (strpos($tn, $mn0) === 0 || strpos($mn0, $tn) === 0)) ? 1 : 0;   // сайттан (автоматты мәтін)
-            log_event(['t' => $now, 'e' => 'w', 'p' => $pid, 'st' => $st, 'm' => $M ? $M['id'] : '', 'mn' => $M ? $M['name'] : $phone,
-                       'cl' => $client, 'tx' => mb_substr((string)$text, 0, 60), 'ck' => $key]);
-        }
-    } else {
-        // Менеджер жауап берді: алғашқы жауап уақытын жазамыз
-        $res = wz_chats_update(function (&$d) use ($key, $now) {
-            if (!isset($d[$key]) || !empty($d[$key]['r'])) return null;
-            $d[$key]['r'] = $now;
-            return $d[$key];
-        });
-        if ($res && !empty($res['p'])) {
-            log_event(['t' => $now, 'e' => 'r', 'p' => $res['p'], 'm' => isset($res['m']) ? $res['m'] : '',
-                       'rs' => max(0, $now - (int)$res['t']), 'ck' => $key]);
-        }
+    // Чат базасын жаңарту: соңғы хабарлама, бірінші кіріс хабарлама, алғашқы жауап
+    $res = wz_chats_update(function (&$d) use ($key, $now, $inbound, $client, $chId, $name, $route, $preview) {
+        $new = !isset($d[$key]);
+        if ($new) $d[$key] = ['t' => $now, 'cl' => $client, 'ch' => $chId];
+        $x = &$d[$key];
+        if (!$new && !isset($x['fi']) && !empty($x['p'])) $x['fi'] = $x['t'];   // ескі жазбалар
+        if (empty($x['p']) && $route[0]) { $x['p'] = $route[0]['id']; $x['m'] = $route[1] ? $route[1]['id'] : ''; }
+        if (empty($x['cl'])) $x['cl'] = $client;
+        $x['last'] = $now;
+        $x['lt'] = mb_substr($preview, 0, 90);
+        $x['ld'] = $inbound ? 'in' : 'out';
+        if ($inbound && $name !== '') $x['nm'] = $name;
+        $firstIn = false; $firstReply = false;
+        if ($inbound && empty($x['fi'])) { $x['fi'] = $now; $firstIn = true; }
+        if (!$inbound && !empty($x['fi']) && empty($x['r'])) { $x['r'] = $now; $firstReply = true; }
+        return [$firstIn, $firstReply, $x];
+    });
+    if (!$res) continue;
+    list($firstIn, $firstReply, $chat) = $res;
+    if (empty($chat['p'])) continue;
+    $pid = $chat['p'];
+
+    // Хабарламаны чат тарихына сақтау
+    msg_log(['t' => $now, 'ck' => $key, 'p' => $pid, 'd' => $inbound ? 'in' : 'out', 'ty' => $mtype,
+             'tx' => mb_substr($text, 0, 4000), 'u' => isset($msg['contentUri']) ? (string)$msg['contentUri'] : '',
+             'au' => isset($msg['authorName']) ? mb_substr((string)$msg['authorName'], 0, 60) : '']);
+
+    if ($firstIn) {
+        // Клиент алғаш рет жазды — нақты өтінім
+        $P = null; foreach ($c['projects'] as $pp) if ($pp['id'] === $pid) $P = $pp;
+        $M = null; if ($P) foreach ($P['managers'] as $mm) if ($mm['id'] === (isset($chat['m']) ? $chat['m'] : '')) $M = $mm;
+        $tn = norm_text($text); $mn0 = norm_text($P ? $P['message'] : '');
+        $st = ($mn0 !== '' && $tn !== '' && (strpos($tn, $mn0) === 0 || strpos($mn0, $tn) === 0)) ? 1 : 0;   // сайттан (автоматты мәтін)
+        log_event(['t' => $now, 'e' => 'w', 'p' => $pid, 'st' => $st, 'm' => $M ? $M['id'] : '', 'mn' => $M ? $M['name'] : $phone,
+                   'cl' => $client, 'tx' => mb_substr($text, 0, 60), 'ck' => $key]);
+    }
+    if ($firstReply) {
+        // Менеджердің алғашқы жауабы — жауап уақыты
+        log_event(['t' => $now, 'e' => 'r', 'p' => $pid, 'm' => isset($chat['m']) ? $chat['m'] : '',
+                   'rs' => max(0, $now - (int)$chat['fi']), 'ck' => $key]);
     }
 }
 echo '{"ok":true}';

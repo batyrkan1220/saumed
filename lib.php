@@ -537,3 +537,35 @@ function wz_route($c, $phone, $text) {
     }
     return $cands[0];
 }
+
+/* ================= Чат тарихы ================= */
+function msg_log($m) {
+    ensure_data();
+    $f = DATA . '/msg-' . gmdate('Y-m', time() + TZ) . '.php';
+    if (!file_exists($f)) {
+        $h = @fopen($f, 'x');
+        if ($h) { fwrite($h, GUARD); fclose($h); }
+    }
+    @file_put_contents($f, json_encode($m, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
+}
+
+// Бір чаттың хабарламалары (соңғы $limit)
+function chat_msgs($ck, $since, $limit = 300) {
+    $out = [];
+    $files = glob(DATA . '/msg-*.php') ?: [];
+    sort($files);
+    $fm = gmdate('Y-m', $since + TZ);
+    foreach ($files as $f) {
+        if (substr(basename($f), 4, 7) < $fm) continue;
+        $h = @fopen($f, 'r');
+        if (!$h) continue;
+        fgets($h);
+        while (($line = fgets($h)) !== false) {
+            if (strpos($line, $ck) === false) continue;
+            $m = json_decode($line, true);
+            if ($m && $m['ck'] === $ck) $out[] = $m;
+        }
+        fclose($h);
+    }
+    return array_slice($out, -$limit);
+}

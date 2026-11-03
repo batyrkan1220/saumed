@@ -50,6 +50,29 @@ h2{font-size:18px;margin:0 0 12px}
 .kpis{grid-template-columns:repeat(4,1fr)}
 .two{grid-template-columns:1fr 1fr}
 .grid>*{min-width:0}
+.chatwrap{display:grid;grid-template-columns:340px 1fr;gap:12px;align-items:start}
+.chatwrap .card{margin:0}
+.clist{max-height:78vh;overflow-y:auto;padding:12px}
+.ci{display:flex;gap:10px;padding:10px 8px;border-radius:12px;text-decoration:none;color:inherit;border-bottom:1px solid #f1f5f9}
+.ci:hover{background:#f8fafc}.ci.cur{background:#dcfce7}
+.av{width:40px;height:40px;border-radius:50%;background:#e2e8f0;color:#475569;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cb{flex:1;min-width:0}
+.ct{display:flex;justify-content:space-between;gap:8px}.ct b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ct span{font-size:12px;color:var(--m);white-space:nowrap}
+.cp{font-size:13px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm{font-size:12px;color:var(--m);margin-top:2px}
+.cview{padding:0;overflow:hidden}
+.chd{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--b);background:#fff}
+.chd .back{display:none}
+.msgs{height:62vh;overflow-y:auto;padding:14px;background:#efeae2;display:flex;flex-direction:column;gap:6px}
+.cview>.muted{padding:0 14px 12px}
+.bub{max-width:78%;padding:7px 10px 5px;border-radius:10px;font-size:14.5px;line-height:1.4;box-shadow:0 1px 1px rgba(0,0,0,.08);word-wrap:break-word}
+.bub.in{align-self:flex-start;background:#fff;border-top-left-radius:2px}
+.bub.out{align-self:flex-end;background:#d9fdd3;border-top-right-radius:2px}
+.bub img{max-width:240px;max-height:240px;border-radius:8px;display:block}
+.bub .tm{font-size:11px;color:#667781;text-align:right;margin-top:2px}
+.bub .au{font-size:12px;font-weight:700;color:#0d7a37}
+.day{align-self:center;background:#fff;border-radius:8px;padding:3px 10px;font-size:12px;color:#54656f;margin:6px 0}
+@media(max-width:820px){.chatwrap{grid-template-columns:1fr}.chatwrap.has-sel .clist{display:none}.chatwrap:not(.has-sel) .cview{display:none}.chd .back{display:inline-block}.msgs{height:66vh}}
 .fun{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap}
 .fun .st{flex:1;min-width:130px;background:#f8fafc;border:1px solid var(--b);border-radius:14px;padding:12px 14px}
 .fun .st.hi{background:linear-gradient(135deg,#15803d,#166534);color:#fff;border:0}
@@ -352,10 +375,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     go_to();
 }
 
+$dur = function ($sec) {
+    if ($sec === null) return '—';
+    if ($sec < 60) return $sec . ' сек';
+    if ($sec < 3600) return round($sec / 60) . ' мин';
+    return floor($sec / 3600) . ' ч ' . round(($sec % 3600) / 60) . ' мин';
+};
 $flash = isset($_SESSION['flash']) ? $_SESSION['flash'] : '';
 unset($_SESSION['flash']);
 $tab = isset($_GET['tab']) ? $_GET['tab'] : 'stats';
-if (!in_array($tab, ['stats', 'managers', 'site', 'projects', 'settings'], true)) $tab = 'stats';
+if (!in_array($tab, ['stats', 'chats', 'managers', 'site', 'projects', 'settings'], true)) $tab = 'stats';
 
 head_html('Админка — ' . $P['name']);
 ?>
@@ -371,6 +400,7 @@ head_html('Админка — ' . $P['name']);
   </div>
   <nav class="tabs">
     <a href="?tab=stats" class="<?= $tab === 'stats' ? 'on' : '' ?>">📊 Аналитика</a>
+    <a href="?tab=chats" class="<?= $tab === 'chats' ? 'on' : '' ?>">💬 Чаты<?php $wn = 0; foreach (wz_chats() as $x) if ((isset($x['p']) ? $x['p'] : '') === $P['id'] && isset($x['ld']) && $x['ld'] === 'in') $wn++; if ($wn): ?> <span class="pill" style="background:#dc2626;color:#fff;padding:1px 7px"><?= $wn ?></span><?php endif; ?></a>
     <a href="?tab=managers" class="<?= $tab === 'managers' ? 'on' : '' ?>">👥 Менеджеры</a>
     <a href="?tab=site" class="<?= $tab === 'site' ? 'on' : '' ?>">✏️ Сайт</a>
     <a href="?tab=projects" class="<?= $tab === 'projects' ? 'on' : '' ?>">📁 Проекты</a>
@@ -656,6 +686,108 @@ if ($tab === 'stats'):
       <tr><td><?= ldate('d.m H:i', $e['t']) ?></td><td><?= h($mn) ?></td><td><?= h($sn(!empty($e['s']) ? $e['s'] : 'direct')) ?><?= !empty($e['c']) ? ' <span class="muted">· ' . h($e['c']) . '</span>' : '' ?></td><td><?= h(isset($e['d']) ? $e['d'] : '') ?></td></tr>
     <?php endforeach; ?></table></div><?php endif; ?>
   </div>
+
+<?php
+/* ================= ЧАТЫ ================= */
+elseif ($tab === 'chats'):
+    $all = wz_chats();
+    $cf = isset($_GET['cf']) ? $_GET['cf'] : 'all';
+    $cmF = isset($_GET['cm']) ? $_GET['cm'] : '';
+    $q = preg_replace('/\D/', '', isset($_GET['q']) ? $_GET['q'] : '');
+    $mNames = []; foreach ($P['managers'] as $m) $mNames[$m['id']] = $m['name'];
+    $list = []; $waitN = 0;
+    foreach ($all as $k => $x) {
+        if (empty($x['p']) || $x['p'] !== $P['id']) continue;
+        $wait = isset($x['ld']) && $x['ld'] === 'in';
+        if ($wait) $waitN++;
+        if ($cf === 'wait' && !$wait) continue;
+        if ($cmF !== '' && (isset($x['m']) ? $x['m'] : '') !== $cmF) continue;
+        if ($q !== '' && strpos(isset($x['cl']) ? $x['cl'] : $k, $q) === false) continue;
+        $x['_k'] = $k; $x['_wait'] = $wait;
+        $list[] = $x;
+    }
+    usort($list, function ($a, $b) { return (isset($b['last']) ? $b['last'] : 0) - (isset($a['last']) ? $a['last'] : 0); });
+    $list = array_slice($list, 0, 300);
+    $sel = isset($_GET['c']) && isset($all[$_GET['c']]) && (isset($all[$_GET['c']]['p']) ? $all[$_GET['c']]['p'] : '') === $P['id'] ? $_GET['c'] : '';
+    $qsBase = 'tab=chats&cf=' . rawurlencode($cf) . '&cm=' . rawurlencode($cmF) . '&q=' . rawurlencode($q);
+    $ago = function ($ts) {
+        $d = time() - $ts;
+        if ($d < 60) return 'сейчас';
+        if ($d < 3600) return floor($d / 60) . ' мин';
+        if (ldate('Y-m-d', $ts) === ldate('Y-m-d', time())) return ldate('H:i', $ts);
+        return ldate('d.m', $ts);
+    };
+?>
+<?php if (!$cfg['wz_key'] && !$all): ?>
+  <div class="card"><h2>💬 Чаты</h2><p class="muted">Чтобы видеть переписку с клиентами, <a href="?tab=settings">подключите Wazzup24</a>. Сообщения появятся здесь сразу после подключения.</p></div>
+<?php else: ?>
+  <div class="chatwrap <?= $sel ? 'has-sel' : '' ?>">
+    <div class="clist card">
+      <form method="get" class="row" style="margin-bottom:8px">
+        <input type="hidden" name="tab" value="chats"><input type="hidden" name="cf" value="<?= h($cf) ?>">
+        <input type="text" name="q" value="<?= h($q) ?>" placeholder="Поиск по номеру" style="flex:1;min-width:120px;padding:8px 10px">
+        <select name="cm" onchange="this.form.submit()" style="width:auto;padding:8px">
+          <option value="">Все менеджеры</option>
+          <?php foreach ($P['managers'] as $m): ?><option value="<?= h($m['id']) ?>" <?= $cmF === $m['id'] ? 'selected' : '' ?>><?= h($m['name']) ?></option><?php endforeach; ?>
+        </select>
+      </form>
+      <div class="ranges" style="margin-bottom:6px">
+        <a href="?tab=chats&cf=all&cm=<?= h(rawurlencode($cmF)) ?>" class="<?= $cf !== 'wait' ? 'on' : '' ?>">Все</a>
+        <a href="?tab=chats&cf=wait&cm=<?= h(rawurlencode($cmF)) ?>" class="<?= $cf === 'wait' ? 'on' : '' ?>">Ждут ответа · <?= $waitN ?></a>
+      </div>
+      <?php if (!$list): ?><p class="muted" style="padding:10px 0">Чатов пока нет. Они появятся, когда клиенты напишут на номера менеджеров.</p><?php endif; ?>
+      <?php foreach ($list as $x): $k = $x['_k']; ?>
+        <a class="ci <?= $k === $sel ? 'cur' : '' ?>" href="?<?= h($qsBase) ?>&c=<?= h(rawurlencode($k)) ?>">
+          <div class="av"><?= h(mb_strtoupper(mb_substr(!empty($x['nm']) ? $x['nm'] : '#', 0, 1))) ?></div>
+          <div class="cb">
+            <div class="ct"><b><?= h(!empty($x['nm']) ? $x['nm'] : '+' . $x['cl']) ?></b><span><?= h($ago(isset($x['last']) ? $x['last'] : $x['t'])) ?></span></div>
+            <div class="cp"><?= isset($x['ld']) && $x['ld'] === 'out' ? '<span class="muted">Вы: </span>' : '' ?><?= h(isset($x['lt']) ? $x['lt'] : '') ?></div>
+            <div class="cm"><?= h(isset($mNames[isset($x['m']) ? $x['m'] : '']) ? $mNames[$x['m']] : '') ?><?php if ($x['_wait']): ?> <span class="pill" style="background:#fee2e2;color:#dc2626">ждёт ответа</span><?php endif; ?></div>
+          </div>
+        </a>
+      <?php endforeach; ?>
+    </div>
+
+    <div class="cview card">
+    <?php if (!$sel): ?>
+      <p class="muted" style="text-align:center;margin-top:40px">Выберите чат слева</p>
+    <?php else:
+      $x = $all[$sel];
+      $msgs = chat_msgs($sel, (int)$x['t']);
+      $mn = isset($mNames[isset($x['m']) ? $x['m'] : '']) ? $mNames[$x['m']] : '—';
+    ?>
+      <div class="chd">
+        <a class="btn sm gray back" style="text-decoration:none" href="?<?= h($qsBase) ?>">←</a>
+        <div style="flex:1;min-width:0">
+          <b><?= h(!empty($x['nm']) ? $x['nm'] : '+' . $x['cl']) ?></b><br>
+          <span class="muted">+<?= h($x['cl']) ?> · менеджер: <?= h($mn) ?><?= !empty($x['fi']) && !empty($x['r']) ? ' · первый ответ через ' . h($dur($x['r'] - $x['fi'])) : '' ?></span>
+        </div>
+        <a class="btn sm" style="text-decoration:none" href="https://wa.me/<?= h($x['cl']) ?>" target="_blank">WhatsApp</a>
+      </div>
+      <div class="msgs" id="msgs">
+        <?php if (!$msgs): ?><p class="muted" style="text-align:center">История сообщений появится с новыми сообщениями.</p><?php endif; ?>
+        <?php $lastDay = ''; foreach ($msgs as $m):
+          $day = ldate('d.m.Y', $m['t']);
+          if ($day !== $lastDay) { echo '<div class="day">' . h($day) . '</div>'; $lastDay = $day; } ?>
+          <div class="bub <?= $m['d'] === 'in' ? 'in' : 'out' ?>">
+            <?php if ($m['d'] === 'out' && !empty($m['au'])): ?><div class="au"><?= h($m['au']) ?></div><?php endif; ?>
+            <?php if (!empty($m['u']) && $m['ty'] === 'image'): ?><a href="<?= h($m['u']) ?>" target="_blank"><img src="<?= h($m['u']) ?>" alt="📷 Фото" loading="lazy" onerror="this.outerHTML='📷 Фото'"></a>
+            <?php elseif (!empty($m['u'])): ?><a href="<?= h($m['u']) ?>" target="_blank">📎 <?= h(['video' => 'Видео', 'audio' => 'Аудио', 'document' => 'Файл'][$m['ty']] ?? 'Вложение') ?></a>
+            <?php elseif ($m['tx'] === '' && $m['ty'] === 'missing_call'): ?>📞 Пропущенный звонок<?php endif; ?>
+            <?php if ($m['tx'] !== ''): ?><div><?= nl2br(h($m['tx'])) ?></div><?php endif; ?>
+            <div class="tm"><?= ldate('H:i', $m['t']) ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+      <p class="muted" style="margin-top:8px">Ответить клиенту можно в WhatsApp или Wazzup — сообщение сразу появится здесь.</p>
+    <?php endif; ?>
+    </div>
+  </div>
+  <script>
+  (function(){var m=document.getElementById('msgs');if(m)m.scrollTop=m.scrollHeight;
+   setInterval(function(){var a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='SELECT'))return;location.reload();},20000);})();
+  </script>
+<?php endif; ?>
 
 <?php
 /* ================= МЕНЕДЖЕРЛЕР ================= */
