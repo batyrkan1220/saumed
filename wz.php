@@ -58,7 +58,9 @@ foreach ($body['messages'] as $msg) {
             if (!$P) continue;
             $pid = $P['id'];
             wz_chats_update(function (&$d) use ($key, $pid, $M) { $d[$key]['p'] = $pid; $d[$key]['m'] = $M ? $M['id'] : ''; });
-            log_event(['t' => $now, 'e' => 'w', 'p' => $pid, 'm' => $M ? $M['id'] : '', 'mn' => $M ? $M['name'] : $phone,
+            $tn = norm_text($text); $mn0 = norm_text($P['message']);
+            $st = ($mn0 !== '' && $tn !== '' && (strpos($tn, $mn0) === 0 || strpos($mn0, $tn) === 0)) ? 1 : 0;   // сайттан (автоматты мәтін)
+            log_event(['t' => $now, 'e' => 'w', 'p' => $pid, 'st' => $st, 'm' => $M ? $M['id'] : '', 'mn' => $M ? $M['name'] : $phone,
                        'cl' => $client, 'tx' => mb_substr((string)$text, 0, 60), 'ck' => $key]);
         }
     } else {

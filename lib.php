@@ -290,10 +290,10 @@ JS;
 
 /* ================= Фото жүктеу ================= */
 function save_upload($file, $slug) {
-    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) return 'Файл таңдалмады';
-    if ($file['size'] > 8 * 1024 * 1024) return 'Файл тым үлкен (8 MB-тан аспасын)';
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) return 'Файл не выбран';
+    if ($file['size'] > 8 * 1024 * 1024) return 'Файл слишком большой (максимум 8 МБ)';
     $info = @getimagesize($file['tmp_name']);
-    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) return 'Тек JPG, PNG немесе WEBP сурет';
+    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) return 'Только изображения JPG, PNG или WEBP';
     $dir = ROOT . '/up';
     if (!is_dir($dir)) @mkdir($dir, 0755);
     $base = 'up/' . $slug . '-' . substr(md5(uniqid('', true)), 0, 6);
@@ -321,7 +321,7 @@ function save_upload($file, $slug) {
     }
     // GD жоқ болса — түпнұсқаны сақтаймыз
     $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'][$info[2]];
-    if (!@move_uploaded_file($file['tmp_name'], ROOT . '/' . $base . '.' . $ext)) return 'Файлды сақтау мүмкін болмады';
+    if (!@move_uploaded_file($file['tmp_name'], ROOT . '/' . $base . '.' . $ext)) return 'Не удалось сохранить файл';
     $res['img'] = $base . '.' . $ext;
     return $res;
 }
@@ -460,7 +460,7 @@ function wz_api($key, $method, $path, $body = null) {
         $res = @file_get_contents($url, false, $ctx);
         $code = 0;
         if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $mm)) $code = (int)$mm[1];
-        if ($res === false) return [0, null, 'Байланыс жоқ'];
+        if ($res === false) return [0, null, 'Нет соединения'];
         $err = '';
     }
     return [$code, json_decode($res, true), $err ?: (is_string($res) ? substr($res, 0, 300) : '')];
@@ -469,7 +469,7 @@ function wz_api($key, $method, $path, $body = null) {
 // Каналдар тізімін алу: channelId => нөмір
 function wz_channels($key) {
     list($code, $j, $err) = wz_api($key, 'GET', 'channels');
-    if ($code !== 200 || !is_array($j)) return [null, 'Wazzup жауабы: ' . $code . ' ' . $err];
+    if ($code !== 200 || !is_array($j)) return [null, 'Ответ Wazzup: ' . $code . ' ' . $err];
     $out = [];
     foreach ($j as $c) if (isset($c['channelId'])) {
         $out[$c['channelId']] = ['phone' => preg_replace('/\D/', '', isset($c['plainId']) ? $c['plainId'] : ''), 'transport' => isset($c['transport']) ? $c['transport'] : '', 'state' => isset($c['state']) ? $c['state'] : ''];
