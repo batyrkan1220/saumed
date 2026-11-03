@@ -49,6 +49,7 @@ h2{font-size:18px;margin:0 0 12px}
 .grid{display:grid;gap:12px}
 .kpis{grid-template-columns:repeat(4,1fr)}
 .two{grid-template-columns:1fr 1fr}
+.grid>*{min-width:0}
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
 .kpi{background:#fff;border:1px solid var(--b);border-radius:16px;padding:14px 16px}
 .kpi .l{color:var(--m);font-size:13px;font-weight:600}
@@ -298,6 +299,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         go_to('tab=projects', 'Проект өшірілді');
     }
 
+    /* --- Wazzup24 --- */
+    if ($a === 'wz_connect') {
+        $key = preg_replace('/[^A-Za-z0-9_\-]/', '', post('wz_key'));
+        if ($key === '') go_to('tab=settings', '⚠️ Wazzup API кілтін жазыңыз');
+        list($ch, $err) = wz_channels($key);
+        if ($ch === null) go_to('tab=settings', '⚠️ Wazzup кілтті қабылдамады. Кілтті тексеріңіз. (' . mb_substr($err, 0, 120) . ')');
+        $hook = $base . 'wz.php?k=' . $cfg['wz_secret'];
+        list($code, $j, $err) = wz_api($key, 'PATCH', 'webhooks', ['webhooksUri' => $hook, 'subscriptions' => ['messagesAndStatuses' => true, 'contactsAndDealsCreation' => false]]);
+        if ($code !== 200) go_to('tab=settings', '⚠️ Webhook орнатылмады (' . $code . '): ' . mb_substr($err, 0, 160));
+        $cfg['wz_key'] = $key; $cfg['wz_channels'] = $ch;
+        cfg_save($cfg);
+        go_to('tab=settings', 'Wazzup қосылды ✓ Енді клиент жазғанда статистикада көрінеді');
+    }
+    if ($a === 'wz_refresh' && $cfg['wz_key']) {
+        list($ch, $err) = wz_channels($cfg['wz_key']);
+        if ($ch === null) go_to('tab=settings', '⚠️ ' . $err);
+        $cfg['wz_channels'] = $ch; cfg_save($cfg);
+        go_to('tab=settings', 'Каналдар жаңартылды ✓');
+    }
+    if ($a === 'wz_off') {
+        $cfg['wz_key'] = ''; cfg_save($cfg);
+        go_to('tab=settings', 'Wazzup ажыратылды');
+    }
+
     /* --- Жалпы баптаулар --- */
     if ($a === 'pass') {
         if (!password_verify(post('old'), $cfg['password'])) go_to('tab=settings', '⚠️ Қазіргі құпиясөз қате');
@@ -368,12 +393,26 @@ if ($tab === 'stats'):
     $ev = load_events($from, $to, $P['id']);
     $visits = 0; $clicks = 0; $uv = []; $uc = [];
     $byM = []; $byS = []; $byD = []; $byC = []; $recent = [];
+    $leads = 0; $leadList = []; $rsAll = [];
+    $WZ = !empty($cfg['wz_key']);
+    $mInit = function ($n) { return ['n' => $n, 'c' => 0, 'ov' => 0, 'oc' => 0, 'w' => 0, 'rs' => []]; };
     $hourly = ($to - $from) <= 86400;
     $buckets = [];
-    if ($hourly) { for ($i = 0; $i < 24; $i++) $buckets[$i] = [sprintf('%02d', $i), 0, 0]; }
-    else { for ($d = day_start($from); $d <= $to; $d += 86400) $buckets[ldate('Y-m-d', $d)] = [ldate('d.m', $d), 0, 0]; }
+    if ($hourly) { for ($i = 0; $i < 24; $i++) $buckets[$i] = [sprintf('%02d', $i), 0, 0, 0]; }
+    else { for ($d = day_start($from); $d <= $to; $d += 86400) $buckets[ldate('Y-m-d', $d)] = [ldate('d.m', $d), 0, 0, 0]; }
 
     foreach ($ev as $e) {
+        // Wazzup: клиент шынымен жазды / менеджер жауап берді
+        if ($e['e'] === 'w' || $e['e'] === 'r') {
+            $mid = !empty($e['m']) ? $e['m'] : '—';
+            if (!isset($byM[$mid])) $byM[$mid] = $mInit(isset($e['mn']) ? $e['mn'] : '—');
+            if ($e['e'] === 'w') {
+                $leads++; $byM[$mid]['w']++; $leadList[] = $e;
+                $bk = $hourly ? (int)ldate('G', $e['t']) : ldate('Y-m-d', $e['t']);
+                if (isset($buckets[$bk])) $buckets[$bk][3]++;
+            } else { $rsAll[] = (int)$e['rs']; $byM[$mid]['rs'][] = (int)$e['rs']; }
+            continue;
+        }
         $isC = $e['e'] === 'c';
         $vk = !empty($e['v']) ? $e['v'] : ('x' . $e['t']);
         $s = !empty($e['s']) ? $e['s'] : 'direct';
@@ -384,7 +423,7 @@ if ($tab === 'stats'):
         if ($isC) {
             $clicks++; $uc[$vk] = 1;
             $mid = !empty($e['m']) ? $e['m'] : '—';
-            if (!isset($byM[$mid])) $byM[$mid] = ['n' => isset($e['mn']) ? $e['mn'] : '—', 'c' => 0, 'ov' => 0, 'oc' => 0];
+            if (!isset($byM[$mid])) $byM[$mid] = $mInit(isset($e['mn']) ? $e['mn'] : '—');
             $byM[$mid]['c']++;
             if (!empty($e['o'])) $byM[$mid]['oc']++;
             $byS[$s][1]++; $byD[$dv][1]++;
@@ -394,7 +433,7 @@ if ($tab === 'stats'):
         } else {
             $visits++; $uv[$vk] = 1;
             if (!empty($e['m'])) {
-                if (!isset($byM[$e['m']])) $byM[$e['m']] = ['n' => $e['m'], 'c' => 0, 'ov' => 0, 'oc' => 0];
+                if (!isset($byM[$e['m']])) $byM[$e['m']] = $mInit($e['m']);
                 $byM[$e['m']]['ov']++;
             }
             $byS[$s][0]++; $byD[$dv][0]++;
@@ -409,6 +448,18 @@ if ($tab === 'stats'):
     uasort($byC, function ($a, $b) { return ($b[0] + $b[1]) - ($a[0] + $a[1]); });
     $recent = array_reverse(array_slice($recent, -30));
     $conv = count($uv) ? round(count($uc) / count($uv) * 100, 1) : 0;
+    // Wazzup көрсеткіштері
+    $chats = ($WZ || $leads) ? wz_chats() : [];
+    $noReply = 0;
+    foreach ($leadList as $e) if (!empty($e['ck']) && empty($chats[$e['ck']]['r'])) $noReply++;
+    $avgRs = $rsAll ? (int)round(array_sum($rsAll) / count($rsAll)) : null;
+    $leadList = array_reverse(array_slice($leadList, -50));
+    $dur = function ($sec) {
+        if ($sec === null) return '—';
+        if ($sec < 60) return $sec . ' сек';
+        if ($sec < 3600) return round($sec / 60) . ' мин';
+        return floor($sec / 3600) . ' сағ ' . round(($sec % 3600) / 60) . ' мин';
+    };
     $srcNames = ['tiktok' => 'TikTok', 'instagram' => 'Instagram', 'facebook' => 'Facebook', 'google' => 'Google', 'direct' => 'Тікелей / белгісіз', 'youtube' => 'YouTube', 'telegram' => 'Telegram', 'vk' => 'VK', 'yandex' => 'Яндекс'];
     $sn = function ($s) use ($srcNames) { return isset($srcNames[$s]) ? $srcNames[$s] : $s; };
     $qs = function ($k) use ($r) { return $r === $k ? 'on' : ''; };
@@ -434,24 +485,34 @@ if ($tab === 'stats'):
     <div class="kpi hi"><div class="l">WhatsApp-қа басулар</div><div class="v"><?= $clicks ?></div></div>
     <div class="kpi"><div class="l">Конверсия</div><div class="v"><?= $conv ?>%</div></div>
   </div>
+<?php if ($WZ || $leads): ?>
+  <div class="grid kpis" style="margin-bottom:16px">
+    <div class="kpi hi" style="background:linear-gradient(135deg,#15803d,#166534)"><div class="l">✍️ Нақты жазғандар</div><div class="v"><?= $leads ?></div></div>
+    <div class="kpi"><div class="l">Басқандардың жазғаны</div><div class="v"><?= count($uc) ? min(100, round($leads / count($uc) * 100)) . '%' : '—' ?></div></div>
+    <div class="kpi"><div class="l">Орташа жауап уақыты</div><div class="v" style="font-size:22px"><?= h($dur($avgRs)) ?></div></div>
+    <div class="kpi" <?= $noReply ? 'style="background:#fee2e2;border-color:#fecaca"' : '' ?>><div class="l">Жауапсыз қалғандар</div><div class="v" <?= $noReply ? 'style="color:#dc2626"' : '' ?>><?= $noReply ?></div></div>
+  </div>
+<?php endif; ?>
 
   <div class="card">
     <h2><?= h($P['name']) ?> · <?= h($rangeLabel) ?> — <?= $hourly ? 'сағат бойынша' : 'күн бойынша' ?></h2>
-    <div class="legend"><span><i style="background:#bbf7d0"></i>Кірулер</span><span><i style="background:#16a34a"></i>WhatsApp басулар</span></div>
+    <div class="legend"><span><i style="background:#bbf7d0"></i>Кірулер</span><span><i style="background:#4ade80"></i>WhatsApp басулар</span><?php if ($WZ || $leads): ?><span><i style="background:#166534"></i>Нақты жазғандар</span><?php endif; ?></div>
     <?php
     $n = count($buckets); $max = 1;
-    foreach ($buckets as $b) $max = max($max, $b[1], $b[2]);
+    foreach ($buckets as $b) $max = max($max, $b[1], $b[2], $b[3]);
+    $nb = ($WZ || $leads) ? 3 : 2;
     $H = 170; $pad = 22; $w = max($n * 26, 300);
     $every = max(1, (int)ceil($n / 15));
     echo '<svg class="chart" viewBox="0 0 ' . $w . ' ' . ($H + $pad) . '" preserveAspectRatio="none" style="max-height:260px">';
     for ($g = 0; $g <= 4; $g++) { $y = $H - $H * $g / 4; echo '<line x1="0" x2="' . $w . '" y1="' . $y . '" y2="' . $y . '" stroke="#eef2f6"/>'; }
     $i = 0;
     foreach ($buckets as $b) {
-        $x = $i * ($w / $n) + 3; $bw = ($w / $n - 6) / 2;
-        $h1 = $b[1] / $max * ($H - 10); $h2 = $b[2] / $max * ($H - 10);
-        echo '<g><title>' . h($b[0]) . ': кіру ' . $b[1] . ', басу ' . $b[2] . '</title>';
+        $x = $i * ($w / $n) + 3; $bw = ($w / $n - 6) / $nb;
+        $h1 = $b[1] / $max * ($H - 10); $h2 = $b[2] / $max * ($H - 10); $h3 = $b[3] / $max * ($H - 10);
+        echo '<g><title>' . h($b[0]) . ': кіру ' . $b[1] . ', басу ' . $b[2] . ($nb === 3 ? ', жазды ' . $b[3] : '') . '</title>';
+        if ($nb === 3) echo '<rect x="' . round($x + 2 * $bw, 1) . '" y="' . round($H - $h3, 1) . '" width="' . round($bw, 1) . '" height="' . round($h3, 1) . '" rx="2" fill="#166534"/>';
         echo '<rect x="' . round($x, 1) . '" y="' . round($H - $h1, 1) . '" width="' . round($bw, 1) . '" height="' . round($h1, 1) . '" rx="2" fill="#bbf7d0"/>';
-        echo '<rect x="' . round($x + $bw, 1) . '" y="' . round($H - $h2, 1) . '" width="' . round($bw, 1) . '" height="' . round($h2, 1) . '" rx="2" fill="#16a34a"/></g>';
+        echo '<rect x="' . round($x + $bw, 1) . '" y="' . round($H - $h2, 1) . '" width="' . round($bw, 1) . '" height="' . round($h2, 1) . '" rx="2" fill="#4ade80"/></g>';
         if ($i % $every === 0) echo '<text x="' . round($x + $bw, 1) . '" y="' . ($H + 15) . '" font-size="10" text-anchor="middle" fill="#64748b">' . h($b[0]) . '</text>';
         $i++;
     }
@@ -463,11 +524,11 @@ if ($tab === 'stats'):
     <div class="card">
       <h2>👥 Менеджерлерге түскен өтінімдер</h2>
       <?php if (!$byM): ?><p class="muted">Бұл кезеңде басулар әлі жоқ</p><?php else: ?>
-      <table><tr><th>Менеджер</th><th class="n">Барлық басу</th><th class="n">Жеке сілтеме</th></tr>
+      <div style="overflow-x:auto"><table><tr><th>Менеджер</th><th class="n">Басу</th><?php if ($WZ || $leads): ?><th class="n">Жазды</th><th class="n">Жауап</th><?php endif; ?><th class="n">Жеке сілт.</th></tr>
       <?php foreach ($byM as $m): $pc = $clicks ? round($m['c'] / $clicks * 100) : 0; ?>
-        <tr><td><?= h($m['n']) ?><div class="bar"><b style="width:<?= $pc ?>%"></b></div></td><td class="n"><b><?= $m['c'] ?></b> <span class="muted"><?= $pc ?>%</span></td><td class="n"><?= $m['ov'] || $m['oc'] ? $m['ov'] . ' / <b>' . $m['oc'] . '</b>' : '<span class="muted">—</span>' ?></td></tr>
-      <?php endforeach; ?></table>
-      <p class="muted" style="margin-top:8px">«Жеке сілтеме»: менеджердің өз сілтемесімен кірген / WhatsApp басқан адамдар.</p><?php endif; ?>
+        <tr><td><?= h($m['n']) ?><div class="bar"><b style="width:<?= $pc ?>%"></b></div></td><td class="n"><b><?= $m['c'] ?></b> <span class="muted"><?= $pc ?>%</span></td><?php if ($WZ || $leads): ?><td class="n"><b><?= $m['w'] ?></b></td><td class="n"><?= h($dur($m['rs'] ? (int)round(array_sum($m['rs']) / count($m['rs'])) : null)) ?></td><?php endif; ?><td class="n"><?= $m['ov'] || $m['oc'] ? $m['ov'] . ' / <b>' . $m['oc'] . '</b>' : '<span class="muted">—</span>' ?></td></tr>
+      <?php endforeach; ?></table></div>
+      <p class="muted" style="margin-top:8px"><?php if ($WZ || $leads): ?>«Жазды» — WhatsApp-қа шынымен жазған клиенттер (Wazzup), «Жауап» — менеджердің орташа жауап уақыты. <?php endif; ?>«Жеке сілтеме»: менеджердің өз сілтемесімен кірген / WhatsApp басқан адамдар.</p><?php endif; ?>
     </div>
     <div class="card">
       <h2>🌐 Қайдан келді</h2>
@@ -494,6 +555,22 @@ if ($tab === 'stats'):
       <?php endforeach; ?></table><?php endif; ?>
     </div>
   </div>
+
+<?php if ($WZ || $leads): ?>
+  <div class="card">
+    <h2>✍️ WhatsApp-қа жазған клиенттер</h2>
+    <?php if (!$leadList): ?><p class="muted">Бұл кезеңде әлі ешкім жазған жоқ</p><?php else: ?>
+    <div style="overflow-x:auto"><table><tr><th>Уақыт</th><th>Клиент</th><th>Менеджер</th><th>Жауап</th></tr>
+    <?php foreach ($leadList as $e): $mn = isset($e['mn']) ? $e['mn'] : '—';
+        foreach ($P['managers'] as $m) if (isset($e['m']) && $m['id'] === $e['m']) $mn = $m['name'];
+        $ch = !empty($e['ck']) && isset($chats[$e['ck']]) ? $chats[$e['ck']] : null; ?>
+      <tr><td><?= ldate('d.m H:i', $e['t']) ?></td>
+        <td><a href="https://wa.me/<?= h($e['cl']) ?>" target="_blank">+<?= h($e['cl']) ?></a><?php if (!empty($e['tx'])): ?><br><span class="muted"><?= h($e['tx']) ?></span><?php endif; ?></td>
+        <td><?= h($mn) ?></td>
+        <td><?= $ch && !empty($ch['r']) ? h($dur($ch['r'] - $ch['t'])) : '<span class="pill" style="background:#fee2e2;color:#dc2626">жауапсыз</span>' ?></td></tr>
+    <?php endforeach; ?></table></div><?php endif; ?>
+  </div>
+<?php endif; ?>
 
   <div class="card">
     <h2>🕒 Соңғы басулар</h2>
@@ -640,16 +717,16 @@ elseif ($tab === 'site'): ?>
 elseif ($tab === 'projects'):
     $t0 = day_start(time()); $today = load_events($t0, time());
     $stat = [];
-    foreach ($today as $e) { $k = ev_pid($e); if (!isset($stat[$k])) $stat[$k] = [0, 0]; $stat[$k][$e['e'] === 'c' ? 1 : 0]++; }
+    foreach ($today as $e) { $k = ev_pid($e); if (!isset($stat[$k])) $stat[$k] = [0, 0, 0]; $ix = ['v' => 0, 'c' => 1, 'w' => 2]; if (isset($ix[$e['e']])) $stat[$k][$ix[$e['e']]]++; }
 ?>
   <div class="card">
     <h2>📁 Проекттер</h2>
-    <?php foreach ($cfg['projects'] as $p): $s = isset($stat[$p['id']]) ? $stat[$p['id']] : [0, 0]; $mc = 0; foreach ($p['managers'] as $m) if (!empty($m['active'])) $mc++; ?>
+    <?php foreach ($cfg['projects'] as $p): $s = isset($stat[$p['id']]) ? $stat[$p['id']] : [0, 0, 0]; $mc = 0; foreach ($p['managers'] as $m) if (!empty($m['active'])) $mc++; ?>
       <div class="pj <?= $p['id'] === $P['id'] ? 'cur' : '' ?>">
         <div>
           <b><?= h($p['name']) ?></b> <?= $p['active'] ? '' : '<span class="pill off">жабық</span>' ?><br>
           <a class="muted" href="<?= h($base . $p['slug'] . '/') ?>" target="_blank"><?= h($base . $p['slug'] . '/') ?></a><br>
-          <span class="muted">Бүгін: кіру <b><?= $s[0] ?></b> · басу <b><?= $s[1] ?></b> · белсенді менеджер: <b><?= $mc ?></b></span>
+          <span class="muted">Бүгін: кіру <b><?= $s[0] ?></b> · басу <b><?= $s[1] ?></b><?= $cfg['wz_key'] ? ' · жазды <b>' . $s[2] . '</b>' : '' ?> · белсенді менеджер: <b><?= $mc ?></b></span>
         </div>
         <a class="btn sm <?= $p['id'] === $P['id'] ? 'gray' : '' ?>" style="text-decoration:none" href="?p=<?= h($p['id']) ?>&tab=site"><?= $p['id'] === $P['id'] ? 'Ашық' : 'Ашу' ?></a>
       </div>
@@ -685,6 +762,36 @@ elseif ($tab === 'projects'):
 <?php
 /* ================= ЖАЛПЫ БАПТАУЛАР ================= */
 else: ?>
+  <div class="card">
+    <h2>💬 Wazzup24 — нақты неше адам жазғанын көру</h2>
+    <?php if (!$cfg['wz_key']): ?>
+      <p class="muted">Wazzup қосылса, статистикада клиенттің WhatsApp-қа <b>шынымен жазғаны</b> (батырманы басқаны ғана емес), оның нөмірі және менеджердің қанша уақытта жауап бергені көрінеді.</p>
+      <p class="muted" style="margin-top:8px">API кілтті алу: Wazzup → <b>Интеграции</b> (Настройки) → <b>API</b> → кілтті көшіріңіз.</p>
+      <form method="post" class="row" style="margin-top:10px">
+        <?= csrf_field() ?><input type="hidden" name="a" value="wz_connect">
+        <input type="text" name="wz_key" placeholder="Wazzup API кілті" autocomplete="off" style="flex:1;min-width:220px" required>
+        <button class="btn">Қосу</button>
+      </form>
+    <?php else: ?>
+      <p><span class="pill on">Қосулы</span> Клиент жазғанда статистикаға автоматты түседі.</p>
+      <h3 class="sec">Wazzup-тағы WhatsApp нөмірлер</h3>
+      <?php
+        $allM = [];
+        foreach ($cfg['projects'] as $pp) foreach ($pp['managers'] as $mm) $allM[$mm['phone']][] = $pp['name'] . ' → ' . $mm['name'];
+      ?>
+      <table><tr><th>Нөмір</th><th>Күйі</th><th>Менеджер</th></tr>
+      <?php foreach ($cfg['wz_channels'] as $ch): if (!in_array($ch['transport'], ['whatsapp', 'wapi'], true)) continue; ?>
+        <tr><td>+<?= h($ch['phone']) ?></td><td><?= $ch['state'] === 'active' ? '<span class="pill on">active</span>' : '<span class="pill off">' . h($ch['state']) . '</span>' ?></td>
+        <td><?= isset($allM[$ch['phone']]) ? h(implode(', ', $allM[$ch['phone']])) : '<span class="muted">Есептелмейді — менеджерлерде жоқ</span>' ?></td></tr>
+      <?php endforeach; ?></table>
+      <p class="muted" style="margin-top:8px">Тек <b>сіз тіркеген менеджерлердің нөмірлері</b> есептеледі, Wazzup-тағы басқа нөмірлер статистикаға кірмейді. Менеджер нөмірі Wazzup-тағы нөмірмен бірдей болуы керек. Бір нөмір бірнеше проектте болса, проект клиенттің автоматты мәтіні бойынша анықталады.</p>
+      <div class="row" style="margin-top:10px">
+        <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="wz_refresh"><button class="btn sm gray">🔄 Нөмірлерді жаңарту</button></form>
+        <form method="post" onsubmit="return confirm('Wazzup ажыратылсын ба?')"><?= csrf_field() ?><input type="hidden" name="a" value="wz_off"><button class="btn sm red">Ажырату</button></form>
+      </div>
+    <?php endif; ?>
+  </div>
+
   <div class="card">
     <h2>🔒 Құпиясөзді өзгерту</h2>
     <form method="post" style="max-width:380px">

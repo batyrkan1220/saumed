@@ -89,6 +89,9 @@ function cfg() {
         store_write('config', $c);
     }
     if (!isset($c['password'])) $c['password'] = '';
+    if (!isset($c['wz_key'])) $c['wz_key'] = '';
+    if (!isset($c['wz_channels'])) $c['wz_channels'] = [];
+    if (empty($c['wz_secret'])) { $c['wz_secret'] = bin2hex(random_bytes(12)); store_write('config', $c); }
     foreach ($c['projects'] as $i => $p) $c['projects'][$i] = array_merge(project_default(), $p);
     return $c;
 }
@@ -434,4 +437,82 @@ main{width:100%;max-width:440px;text-align:center}
 </body>
 </html>
 <?php
+}
+
+/* ================= Wazzup24 ================= */
+// Wazzup API-ге сұраныс (хостингтен жіберіледі)
+function wz_api($key, $method, $path, $body = null) {
+    $url = 'https://api.wazzup24.com/v3/' . $path;
+    $hdr = ['Authorization: Bearer ' . $key, 'Content-Type: application/json'];
+    $data = $body === null ? null : json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $hdr, CURLOPT_RETURNTRANSFER => true,
+                                CURLOPT_TIMEOUT => 40, CURLOPT_CONNECTTIMEOUT => 10]);
+        if ($data !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        $res = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($res === false) return [0, null, $err];
+    } else {
+        $ctx = stream_context_create(['http' => ['method' => $method, 'header' => implode("\r\n", $hdr), 'content' => (string)$data, 'timeout' => 40, 'ignore_errors' => true]]);
+        $res = @file_get_contents($url, false, $ctx);
+        $code = 0;
+        if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $mm)) $code = (int)$mm[1];
+        if ($res === false) return [0, null, 'Байланыс жоқ'];
+        $err = '';
+    }
+    return [$code, json_decode($res, true), $err ?: (is_string($res) ? substr($res, 0, 300) : '')];
+}
+
+// Каналдар тізімін алу: channelId => нөмір
+function wz_channels($key) {
+    list($code, $j, $err) = wz_api($key, 'GET', 'channels');
+    if ($code !== 200 || !is_array($j)) return [null, 'Wazzup жауабы: ' . $code . ' ' . $err];
+    $out = [];
+    foreach ($j as $c) if (isset($c['channelId'])) {
+        $out[$c['channelId']] = ['phone' => preg_replace('/\D/', '', isset($c['plainId']) ? $c['plainId'] : ''), 'transport' => isset($c['transport']) ? $c['transport'] : '', 'state' => isset($c['state']) ? $c['state'] : ''];
+    }
+    return [$out, ''];
+}
+
+// Клиенттер (чаттар) базасы: бірінші жазған уақыты, проект, менеджер, жауап уақыты
+function wz_chats_update($fn) {
+    ensure_data();
+    $f = DATA . '/wz-chats.php';
+    $h = @fopen($f, 'c+');
+    if (!$h) return null;
+    flock($h, LOCK_EX);
+    $s = stream_get_contents($h);
+    $p = strpos($s, "\n");
+    $d = $p === false ? [] : (json_decode(substr($s, $p + 1), true) ?: []);
+    $r = $fn($d);
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, GUARD . json_encode($d, JSON_UNESCAPED_UNICODE));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $r;
+}
+
+function wz_chats() { $d = store_read('wz-chats'); return $d ?: []; }
+
+function norm_text($s) { return mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$s))); }
+
+// Хабарламаның қай проект пен менеджерге тиесілі екенін анықтау
+function wz_route($c, $phone, $text) {
+    $t = norm_text($text);
+    $cands = [];
+    foreach ($c['projects'] as $p) {
+        foreach ($p['managers'] as $m) if ($m['phone'] === $phone) { $cands[] = [$p, $m]; break; }
+    }
+    if (!$cands) return [null, null];
+    // Клиент автоматты мәтінмен жазса — проект нақты анықталады
+    if ($t !== '') foreach ($cands as $pm) {
+        $msg = norm_text($pm[0]['message']);
+        if ($msg !== '' && (strpos($t, $msg) === 0 || strpos($msg, $t) === 0)) return $pm;
+    }
+    return $cands[0];
 }
