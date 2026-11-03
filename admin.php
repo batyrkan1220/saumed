@@ -5,7 +5,8 @@ nocache();
 header('X-Robots-Tag: noindex, nofollow');
 
 session_name('adm');
-session_set_cookie_params(0, '/', '', !empty($_SERVER['HTTPS']), true);
+ini_set('session.gc_maxlifetime', (string)(30 * 86400));
+session_set_cookie_params(30 * 86400, '/', '', !empty($_SERVER['HTTPS']), true);
 session_start();
 
 ensure_data();
@@ -30,6 +31,15 @@ function head_html($title) { ?>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= h($title) ?></title>
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16a34a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Taplinker">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{--g:#16a34a;--g2:#25d366;--gl:#dcfce7;--t:#0f172a;--m:#64748b;--b:#e2e8f0;--bg:#f6f8fa;--r:#dc2626}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -73,6 +83,12 @@ h2{font-size:18px;margin:0 0 12px}
 .bub .au{font-size:12px;font-weight:700;color:#0d7a37}
 .day{align-self:center;background:#fff;border-radius:8px;padding:3px 10px;font-size:12px;color:#54656f;margin:6px 0}
 @media(max-width:820px){.chatwrap{grid-template-columns:1fr}.chatwrap.has-sel .clist{display:none}.chatwrap:not(.has-sel) .cview{display:none}.chd .back{display:inline-block}.msgs{height:66vh}}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;letter-spacing:.5px;padding:5px 10px;border-radius:999px;text-decoration:none;background:#f1f5f9;color:#94a3b8}
+.live i{width:8px;height:8px;border-radius:50%;background:#94a3b8;display:inline-block}
+.live.on{background:#fee2e2;color:#dc2626}.live.on i{background:#dc2626;animation:lv 1.4s infinite}
+@keyframes lv{0%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}70%{box-shadow:0 0 0 7px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(140%);background:#0f172a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:50;transition:transform .3s;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:92vw}
+.toast.show{transform:translateX(-50%) translateY(0)}
 .fun{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap}
 .fun .st{flex:1;min-width:130px;background:#f8fafc;border:1px solid var(--b);border-radius:14px;padding:12px 14px}
 .fun .st.hi{background:linear-gradient(135deg,#15803d,#166534);color:#fff;border:0}
@@ -144,7 +160,33 @@ code{background:#f1f5f9;padding:2px 6px;border-radius:6px;font-size:13px;word-br
 <body>
 <?php }
 function foot_html() { ?>
+<div class="toast" id="toast"></div>
 <script>
+/* LIVE режим: әр 5 секунд сайын өзгерісті тексереді, жаңа дерек келсе — бетті жаңартады */
+(function(){
+  var btn=document.getElementById('liveBtn'); if(!btn) return;
+  var on=true; try{on=localStorage.getItem('live')!=='0';}catch(e){}
+  btn.classList.toggle('on',on);
+  btn.addEventListener('click',function(e){e.preventDefault();on=!on;btn.classList.toggle('on',on);try{localStorage.setItem('live',on?'1':'0');}catch(e){}});
+  var tab=new URLSearchParams(location.search).get('tab')||'stats';
+  var sig=null, wait=null, baseTitle=document.title;
+  function beep(){try{var a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(a.currentTime+.18);}catch(e){}}
+  function toast(t){var el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},5000);}
+  function busy(){var a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT');}
+  function check(){
+    if(!on||document.hidden) return;
+    fetch('admin.php?live=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+      document.title=(d.wait?'('+d.wait+') ':'')+baseTitle;
+      if(wait!==null && d.wait>wait){ toast('💬 Новое сообщение от клиента'); beep(); }
+      var changed = sig!==null && d.sig!==sig;
+      sig=d.sig; wait=d.wait;
+      if(changed && (tab==='stats'||tab==='chats') && !busy()){ try{sessionStorage.setItem('liveY',String(window.scrollY));}catch(e){} location.reload(); }
+    }).catch(function(){});
+  }
+  try{var y=sessionStorage.getItem('liveY'); if(y!==null){sessionStorage.removeItem('liveY'); window.scrollTo(0,+y);} }catch(e){}
+  check(); setInterval(check,5000);
+  document.addEventListener('visibilitychange',check);
+})();
 function cp(b){var i=b.parentNode.querySelector('input');i.select();i.setSelectionRange(0,999);
 var ok=function(){var t=b.textContent;b.textContent='Скопировано ✓';setTimeout(function(){b.textContent=t},1500)};
 if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(i.value).then(ok,function(){document.execCommand('copy');ok()})}
@@ -164,11 +206,12 @@ if ($cfg['password'] === '') {
         else {
             $cfg['password'] = password_hash($p1, PASSWORD_DEFAULT);
             if (!cfg_save($cfg)) $err = 'Нет доступа к папке data. Дайте папке data права 755 или 775 на хостинге.';
-            else { session_regenerate_id(true); $_SESSION['ok'] = 1; go_to('tab=managers', 'Пароль установлен! Теперь добавьте менеджеров.'); }
+            else { session_regenerate_id(true); $_SESSION['ok'] = 1; remember_set($cfg); go_to('tab=managers', 'Пароль установлен! Теперь добавьте менеджеров.'); }
         }
     }
     head_html('Админка — первая настройка'); ?>
     <div class="login"><div class="card">
+      <img src="img/logo.svg" alt="Taplinker" width="56" height="56" style="display:block;margin-bottom:12px">
       <h2>Добро пожаловать в админку 👋</h2>
       <p class="muted">Сначала придумайте пароль для входа в админку.</p>
       <?php if ($err): ?><div class="flash err" style="margin-top:12px"><?= h($err) ?></div><?php endif; ?>
@@ -181,19 +224,32 @@ if ($cfg['password'] === '') {
     <?php foot_html(); exit;
 }
 
+/* ---------------- «Есте сақтау»: 30 күн қайта кірмей қолдану ---------------- */
+function remember_token($cfg, $exp) { return hash_hmac('sha256', 'adm|' . $exp, $cfg['password'] . '|' . $cfg['wz_secret']); }
+function remember_set($cfg) {
+    $exp = time() + 30 * 86400;
+    setcookie('adm_auth', $exp . '.' . remember_token($cfg, $exp), $exp, '/', '', !empty($_SERVER['HTTPS']), true);
+}
+if (empty($_SESSION['ok']) && !empty($_COOKIE['adm_auth']) && $cfg['password'] !== '') {
+    $pp = explode('.', $_COOKIE['adm_auth'], 2);
+    if (count($pp) === 2 && (int)$pp[0] > time() && hash_equals(remember_token($cfg, (int)$pp[0]), $pp[1])) {
+        session_regenerate_id(true); $_SESSION['ok'] = 1;
+    }
+}
+
 /* ---------------- Шығу / Кіру ---------------- */
-if (isset($_GET['logout'])) { $_SESSION = []; session_destroy(); header('Location: admin.php'); exit; }
+if (isset($_GET['logout'])) { setcookie('adm_auth', '', time() - 3600, '/'); $_SESSION = []; session_destroy(); header('Location: admin.php'); exit; }
 
 if (empty($_SESSION['ok'])) {
     $err = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (password_verify(post('p'), $cfg['password'])) { session_regenerate_id(true); $_SESSION['ok'] = 1; setcookie('adm_seen', '1', time() + 365 * 86400, '/'); go_to(); }
+        if (password_verify(post('p'), $cfg['password'])) { session_regenerate_id(true); $_SESSION['ok'] = 1; setcookie('adm_seen', '1', time() + 365 * 86400, '/'); remember_set($cfg); go_to(); }
         sleep(1);
         $err = 'Неверный пароль';
     }
     head_html('Админка — вход'); ?>
     <div class="login"><div class="card">
-      <h2>Админка</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="img/logo.svg" alt="" width="44" height="44"><div><b style="font-size:20px">Taplinker</b><br><span class="muted">Админка</span></div></div>
       <?php if ($err): ?><div class="flash err"><?= h($err) ?></div><?php endif; ?>
       <form method="post">
         <label>Пароль</label><input type="password" name="p" required autofocus autocomplete="current-password">
@@ -204,6 +260,18 @@ if (empty($_SESSION['ok'])) {
 }
 
 ensure_all_stubs($cfg);
+if (isset($_GET['live'])) {
+    header('Content-Type: application/json');
+    $sig = '';
+    foreach (['ev', 'msg'] as $pre) { $f = DATA . '/' . $pre . '-' . gmdate('Y-m', time() + TZ) . '.php'; $sig .= is_file($f) ? filesize($f) . '.' : '0.'; }
+    $pid = isset($_GET['p']) ? $_GET['p'] : (isset($_SESSION['p']) ? $_SESSION['p'] : '');
+    $wait = 0; $last = 0;
+    foreach (wz_chats() as $x) if ((isset($x['p']) ? $x['p'] : '') === $pid || $pid === '') {
+        if (isset($x['ld']) && $x['ld'] === 'in') { $wait++; $last = max($last, isset($x['last']) ? $x['last'] : 0); }
+    }
+    echo json_encode(['sig' => $sig, 'wait' => $wait, 'last' => $last]);
+    exit;
+}
 if (empty($_COOKIE['adm_seen'])) setcookie('adm_seen', '1', time() + 365 * 86400, '/');
 // Аналитика режимі: тек жарнама (әдепкі) немесе барлық трафик
 if (isset($_GET['tr'])) $_SESSION['tr'] = $_GET['tr'] === 'all' ? 'all' : 'ad';
@@ -366,6 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen(post('p1')) < 6 || post('p1') !== post('p2')) go_to('tab=settings', '⚠️ Новый пароль — не короче 6 символов, оба поля должны совпадать');
         $cfg['password'] = password_hash(post('p1'), PASSWORD_DEFAULT);
         cfg_save($cfg);
+        remember_set($cfg);
         go_to('tab=settings', 'Пароль изменён ✓');
     }
     if ($a === 'reset' && post('confirm') === 'ДА') {
@@ -390,7 +459,8 @@ head_html('Админка — ' . $P['name']);
 ?>
 <div class="top"><div class="top-in">
   <div class="psw">
-    <span class="brand"><i></i></span>
+    <a href="?tab=stats" class="brand" style="text-decoration:none;color:inherit"><img src="img/logo.svg" alt="Taplinker" width="30" height="30"></a>
+    <a href="#" id="liveBtn" class="live on" title="Live — обновление в реальном времени"><i></i>LIVE</a>
     <form method="get"><input type="hidden" name="tab" value="<?= h($tab) ?>">
       <select name="p" onchange="this.form.submit()" aria-label="Проект">
         <?php foreach ($cfg['projects'] as $p): ?><option value="<?= h($p['id']) ?>" <?= $p['id'] === $P['id'] ? 'selected' : '' ?>><?= h($p['name']) ?></option><?php endforeach; ?>
@@ -784,8 +854,7 @@ elseif ($tab === 'chats'):
     </div>
   </div>
   <script>
-  (function(){var m=document.getElementById('msgs');if(m)m.scrollTop=m.scrollHeight;
-   setInterval(function(){var a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='SELECT'))return;location.reload();},20000);})();
+  (function(){var m=document.getElementById('msgs');if(m)m.scrollTop=m.scrollHeight;})();
   </script>
 <?php endif; ?>
 
