@@ -7,10 +7,12 @@ header('Content-Type: application/json');
 
 $c = cfg();
 $k = isset($_GET['k']) ? (string)$_GET['k'] : '';
-if (empty($c['wz_key']) || empty($c['wz_secret']) || !hash_equals($c['wz_secret'], $k)) { http_response_code(403); echo '{}'; exit; }
+if (empty($c['wz_secret']) || !hash_equals($c['wz_secret'], $k)) { http_response_code(403); echo '{}'; exit; }
 
 $body = json_decode(file_get_contents('php://input'), true);
-if (!is_array($body) || !empty($body['test'])) { echo '{"ok":true}'; exit; }   // Wazzup тексеру сұранысы
+// Wazzup тексеру сұранысы ({test:true}) — кілт әлі сақталмаса да 200 қайтарамыз
+if (!is_array($body) || !empty($body['test'])) { http_response_code(200); echo '{"ok":true}'; exit; }
+if (empty($c['wz_key'])) { echo '{"ok":true}'; exit; }   // ажыратылған болса — ештеңе жазбаймыз
 if (empty($body['messages']) || !is_array($body['messages'])) { echo '{"ok":true}'; exit; }
 
 // Админде тіркелген менеджерлердің нөмірлері
