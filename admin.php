@@ -87,8 +87,9 @@ h2{font-size:18px;margin:0 0 12px}
 .live i{width:8px;height:8px;border-radius:50%;background:#94a3b8;display:inline-block}
 .live.on{background:#fee2e2;color:#dc2626}.live.on i{background:#dc2626;animation:lv 1.4s infinite}
 @keyframes lv{0%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}70%{box-shadow:0 0 0 7px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(140%);background:#0f172a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:50;transition:transform .3s;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:92vw}
-.toast.show{transform:translateX(-50%) translateY(0)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:50;transition:transform .3s,opacity .3s,visibility .3s;box-shadow:0 10px 30px rgba(0,0,0,.25);width:max-content;max-width:92vw;opacity:0;visibility:hidden;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
+.toast:empty{display:none}
 .fun{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap}
 .fun .st{flex:1;min-width:130px;background:#f8fafc;border:1px solid var(--b);border-radius:14px;padding:12px 14px}
 .fun .st.hi{background:linear-gradient(135deg,#15803d,#166534);color:#fff;border:0}
@@ -171,7 +172,7 @@ function foot_html() { ?>
   var tab=new URLSearchParams(location.search).get('tab')||'stats';
   var sig=null, wait=null, baseTitle=document.title;
   function beep(){try{var a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(a.currentTime+.18);}catch(e){}}
-  function toast(t){var el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},5000);}
+  function toast(t){var el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(function(){el.classList.remove('show');setTimeout(function(){if(!el.classList.contains('show'))el.textContent='';},400);},5000);}
   function busy(){var a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT');}
   function check(){
     if(!on||document.hidden) return;
