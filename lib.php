@@ -212,8 +212,19 @@ function clean_id($s) { return substr(preg_replace('/[^a-zA-Z0-9]/', '', (string
 function clean_src($s) { return substr(preg_replace('/[^a-z0-9_.\-]/', '', strtolower((string)$s)), 0, 40); }
 function ua() { return isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : ''; }
 
+// Админге кірген браузер (сіз өзіңіз тексеріп жүрсіз) — статистикаға жазылмайды
+function is_admin_visitor() { return !empty($_COOKIE['adm']) || !empty($_COOKIE['adm_seen']); }
+
+// Жарнамадан келді ме: TikTok (ttclid), Meta (fbclid), Google (gclid), Яндекс (yclid) немесе UTM белгісі
+function is_ad_event($e) {
+    if (isset($e['a'])) return (int)$e['a'] === 1;
+    return !empty($e['s']) && $e['s'] !== 'direct';   // ескі жазбалар
+}
+
 function is_bot() {
-    return (bool)preg_match('/bot|crawl|spider|slurp|facebookexternalhit|preview|headless|curl|wget|python/i', ua());
+    $u = ua();
+    if ($u === '' || strlen($u) < 20) return true;
+    return (bool)preg_match('/bot|crawl|spider|slurp|externalhit|externalagent|preview|headless|lighthouse|pagespeed|curl|wget|python|java\/|okhttp|go-http|axios|node-fetch|monitor|scan|check/i', $u);
 }
 
 function device() {
@@ -414,20 +425,30 @@ main{width:100%;max-width:440px;text-align:center}
   src = src || sg(SS, 'src') || ''; ss(SS, 'src', src);
   var cmp = (q.get('utm_campaign') || sg(SS, 'cmp') || '').toLowerCase(); ss(SS, 'cmp', cmp);
   var mg = (q.get('m') || sg(SS, 'm' + P) || '').replace(/[^a-zA-Z0-9]/g, ''); ss(SS, 'm' + P, mg);
+  // Жарнамадан келді ме (таргет): ttclid / fbclid / gclid / yclid / utm_source
+  var ad = (q.get('ttclid') || q.get('fbclid') || q.get('gclid') || q.get('yclid') || q.get('utm_source')) ? '1' : (sg(SS, 'ad' + P) || '0');
+  ss(SS, 'ad' + P, ad);
   var url = '../go.php?p=' + encodeURIComponent(P) + '&vid=' + encodeURIComponent(vid) + '&src=' + encodeURIComponent(src) +
-            '&cmp=' + encodeURIComponent(cmp) + (mg ? '&m=' + encodeURIComponent(mg) : '');
+            '&cmp=' + encodeURIComponent(cmp) + '&ad=' + ad + (mg ? '&m=' + encodeURIComponent(mg) : '');
   // Сілтеме бірден ашылады — WhatsApp сенімді ашылуы үшін кешіктірмейміз
   var links = document.querySelectorAll('.js-wa');
   function px() { if (typeof window.__pxClick === 'function') { try { window.__pxClick(); } catch (er) {} } }
   for (var b = 0; b < links.length; b++) { links[b].href = url; links[b].addEventListener('click', px); }
-  setTimeout(function () {
+  // Кіруді тек бет экранда шынымен көрінгенде санаймыз (фонда алдын ала жүктелгенін емес)
+  var sent = false;
+  function track() {
+    if (sent || document.visibilityState === 'hidden' || document.prerendering) return;
+    sent = true;
     try {
       var fd = new FormData();
-      fd.append('p', P); fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg);
+      fd.append('p', P); fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg); fd.append('ad', ad);
       if (navigator.sendBeacon) navigator.sendBeacon('../track.php', fd);
       else fetch('../track.php', { method: 'POST', body: fd, keepalive: true });
     } catch (e) {}
-  }, 0);
+  }
+  setTimeout(track, 0);
+  document.addEventListener('visibilitychange', track);
+  document.addEventListener('prerenderingchange', track);
   var st = document.getElementById('sticky');
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(function (en) { st.classList.toggle('show', !en[0].isIntersecting); }).observe(document.getElementById('waBtn'));

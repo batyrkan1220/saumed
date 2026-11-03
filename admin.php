@@ -164,7 +164,7 @@ if (isset($_GET['logout'])) { $_SESSION = []; session_destroy(); header('Locatio
 if (empty($_SESSION['ok'])) {
     $err = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (password_verify(post('p'), $cfg['password'])) { session_regenerate_id(true); $_SESSION['ok'] = 1; go_to(); }
+        if (password_verify(post('p'), $cfg['password'])) { session_regenerate_id(true); $_SESSION['ok'] = 1; setcookie('adm_seen', '1', time() + 365 * 86400, '/'); go_to(); }
         sleep(1);
         $err = 'Неверный пароль';
     }
@@ -181,6 +181,10 @@ if (empty($_SESSION['ok'])) {
 }
 
 ensure_all_stubs($cfg);
+if (empty($_COOKIE['adm_seen'])) setcookie('adm_seen', '1', time() + 365 * 86400, '/');
+// Аналитика режимі: тек жарнама (әдепкі) немесе барлық трафик
+if (isset($_GET['tr'])) $_SESSION['tr'] = $_GET['tr'] === 'all' ? 'all' : 'ad';
+$TR = isset($_SESSION['tr']) ? $_SESSION['tr'] : 'ad';
 
 /* ---------------- Ағымдағы проект ---------------- */
 if (isset($_GET['p']) && proj_index($cfg, 'id', $_GET['p']) >= 0) $_SESSION['p'] = $_GET['p'];
@@ -405,7 +409,7 @@ if ($tab === 'stats'):
     $visits = 0; $clicks = 0; $uv = []; $uc = [];
     $byM = []; $byS = []; $byD = []; $byC = []; $recent = [];
     $leads = 0; $leadsSite = 0; $replied = 0; $repliedSite = 0; $noReply = 0; $leadList = []; $rsAll = [];
-    $chats = null;
+    $chats = null; $skipped = 0;
     $msgN = norm_text($P['message']);
     // Клиент сайттың автоматты мәтінімен жазды ма → «сайттан келген»
     $isSite = function ($e) use ($msgN) {
@@ -438,6 +442,7 @@ if ($tab === 'stats'):
             } else { $rsAll[] = (int)$e['rs']; $byM[$mid]['rs'][] = (int)$e['rs']; }
             continue;
         }
+        if ($TR === 'ad' && !is_ad_event($e)) { $skipped++; continue; }
         $isC = $e['e'] === 'c';
         $vk = !empty($e['v']) ? $e['v'] : ('x' . $e['t']);
         $s = !empty($e['s']) ? $e['s'] : 'direct';
@@ -509,6 +514,12 @@ if ($tab === 'stats'):
     </form>
   </div>
 
+  <div class="ranges" style="margin-top:-6px">
+    <a href="?<?= h($keep) ?>&tr=ad" class="<?= $TR === 'ad' ? 'on' : '' ?>">📢 Только реклама</a>
+    <a href="?<?= h($keep) ?>&tr=all" class="<?= $TR === 'all' ? 'on' : '' ?>">Весь трафик</a>
+    <span class="muted"><?= $TR === 'ad' ? 'Не учтено (не из рекламы): ' . $skipped : 'Показан весь трафик, включая прямые заходы' ?></span>
+  </div>
+
   <!-- Воронка: сайттан келген адамның жолы -->
   <div class="card">
     <h2>🔻 <?= h($P['name']) ?> · <?= h($rangeLabel) ?></h2>
@@ -523,6 +534,7 @@ if ($tab === 'stats'):
       <div class="st"><div class="l">💬 Получили ответ</div><div class="v"><?= $repliedSite ?></div><div class="s">из написавших с сайта</div></div>
 <?php endif; ?>
     </div>
+    <p class="muted" style="margin-top:10px">📢 <b>Реклама</b> — переход с меткой TikTok (ttclid), Meta (fbclid), Google (gclid) или с UTM-меткой. Ваши собственные заходы из браузера админки и боты не учитываются.</p>
 <?php if (!$SHOWW): ?>
     <p class="muted" style="margin-top:10px">💡 Чтобы видеть, сколько людей реально <b>написали</b> в WhatsApp, <a href="?tab=settings">подключите Wazzup24</a>.</p>
 <?php endif; ?>
