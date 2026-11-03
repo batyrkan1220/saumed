@@ -92,6 +92,7 @@ function cfg() {
     if (!isset($c['wz_key'])) $c['wz_key'] = '';
     if (!isset($c['wz_channels'])) $c['wz_channels'] = [];
     if (!isset($c['spend_map'])) $c['spend_map'] = [];
+    if (empty($c['ad_cur'])) $c['ad_cur'] = 'USD';   // рекламный кабинет валютасы — айырбастаусыз көрсетіледі
     if (empty($c['wz_secret']) || empty($c['spend_secret'])) {
         if (empty($c['wz_secret'])) $c['wz_secret'] = bin2hex(random_bytes(12));
         if (empty($c['spend_secret'])) $c['spend_secret'] = bin2hex(random_bytes(12));

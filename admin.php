@@ -415,13 +415,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cfg_save($cfg);
         go_to('tab=settings#spend', 'Привязка кампаний сохранена ✓');
     }
+    if ($a === 'ad_cur') {
+        $cfg['ad_cur'] = in_array(post('ad_cur'), ['USD', 'KZT', 'RUB', 'EUR'], true) ? post('ad_cur') : 'USD';
+        cfg_save($cfg);
+        go_to('tab=settings#spend', 'Валюта сохранена ✓');
+    }
     if ($a === 'spend_add') {
         $d = post('d'); $amt = (float)str_replace([' ', ','], ['', '.'], post('amount'));
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || $amt <= 0) go_to('tab=settings#spend', '⚠️ Укажите дату и сумму');
         $sp = store_read('spend') ?: ['rows' => []];
         $name = mb_substr(post('cn'), 0, 100) ?: 'Ручной ввод';
         $key = $d . '|m:' . $P['id'] . ':' . mb_strtolower($name);
-        $sp['rows'][$key] = ['d' => $d, 'ci' => '', 'cn' => $name, 's' => round($amt, 2), 'cur' => post('cur') ?: 'KZT', 'src' => 'manual', 'pm' => $P['id'], 't' => time()];
+        $sp['rows'][$key] = ['d' => $d, 'ci' => '', 'cn' => $name, 's' => round($amt, 2), 'cur' => $cfg['ad_cur'], 'src' => 'manual', 'pm' => $P['id'], 't' => time()];
         store_write('spend', $sp);
         go_to('tab=settings#spend', 'Расход добавлен ✓');
     }
@@ -473,10 +478,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Шығын: валюта белгісі, кампания → проект
-function money($v, $cur = '') {
-    $sym = ['KZT' => '₸', 'USD' => '$', 'RUB' => '₽', 'EUR' => '€', 'UZS' => 'сум', 'KGS' => 'сом'];
-    $c = isset($sym[strtoupper($cur)]) ? $sym[strtoupper($cur)] : ($cur ?: '₸');
-    return number_format((float)$v, $v < 100 ? 2 : 0, ',', ' ') . ' ' . $c;
+function money($v, $cur = 'USD') {
+    $cur = strtoupper($cur ?: 'USD');
+    $v = (float)$v;
+    if ($cur === 'USD') return '$' . number_format($v, 2, '.', ' ');
+    if ($cur === 'EUR') return '€' . number_format($v, 2, '.', ' ');
+    $sym = ['KZT' => '₸', 'RUB' => '₽', 'UZS' => 'сум', 'KGS' => 'сом'];
+    return number_format($v, $v < 100 ? 2 : 0, ',', ' ') . ' ' . (isset($sym[$cur]) ? $sym[$cur] : $cur);
 }
 function spend_key($row) { return $row['ci'] !== '' ? $row['ci'] : 'n:' . mb_strtolower($row['cn']); }
 // Кампания ID → проект: соңғы 90 күндегі кірулерден автоматты анықталады
@@ -635,13 +643,13 @@ if ($tab === 'stats'):
     $SHOWW = $WZ || $leads;
     // Расход за период по этому проекту
     $spRows = (store_read('spend') ?: ['rows' => []])['rows'];
-    $spTotal = 0; $spCur = ''; $spByC = []; $spAuto = null;
+    $spTotal = 0; $spCur = $cfg['ad_cur']; $spByC = []; $spAuto = null;
     $dFrom = ldate('Y-m-d', $from); $dTo = ldate('Y-m-d', $to);
     foreach ($spRows as $row) {
         if ($row['d'] < $dFrom || $row['d'] > $dTo) continue;
         if ($spAuto === null) $spAuto = spend_auto_map();
         if (spend_pid($row, $cfg, $spAuto) !== $P['id']) continue;
-        $spTotal += $row['s']; if (!empty($row['cur'])) $spCur = $row['cur'];
+        $spTotal += $row['s'];
         $kk = spend_key($row);
         if (!isset($spByC[$kk])) $spByC[$kk] = ['s' => 0, 'n' => $row['cn'], 'ci' => $row['ci']];
         $spByC[$kk]['s'] += $row['s'];
@@ -1146,6 +1154,14 @@ else: ?>
       }
       krsort($manual);
     ?>
+    <form method="post" class="row" style="margin-bottom:10px">
+      <?= csrf_field() ?><input type="hidden" name="a" value="ad_cur">
+      <label style="margin:0">Валюта рекламного кабинета:</label>
+      <select name="ad_cur" onchange="this.form.submit()" style="width:auto;padding:7px 10px">
+        <?php foreach (['USD' => '$ USD', 'KZT' => '₸ KZT', 'RUB' => '₽ RUB', 'EUR' => '€ EUR'] as $k => $v): ?><option value="<?= $k ?>" <?= $cfg['ad_cur'] === $k ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?>
+      </select>
+      <span class="muted">— расход показывается как есть, без конвертации</span>
+    </form>
     <p class="muted">Make.com каждые несколько часов берёт расход из TikTok Ads и отправляет сюда. В аналитике появятся <b>Расход</b>, <b>Цена клика</b> и <b>Цена лида</b>.</p>
     <div class="mlink" style="margin:10px 0">
       <span class="muted">Адрес для Make:</span>
@@ -1175,7 +1191,7 @@ else: ?>
       <div style="overflow-x:auto"><table><tr><th>Кампания</th><th class="n">Расход (всего)</th><th>Проект</th></tr>
       <?php foreach ($camps as $kk => $cmp): $autoP = ($cmp['ci'] !== '' && isset($auto[$cmp['ci']])) ? $auto[$cmp['ci']] : ''; $cur = isset($cfg['spend_map'][$kk]) ? $cfg['spend_map'][$kk] : ''; ?>
         <tr><td><?= h($cmp['n'] ?: '—') ?><br><span class="muted" style="font-size:11px"><?= $cmp['ci'] ? 'ID ' . h($cmp['ci']) . ' · ' : '' ?>до <?= h($cmp['last']) ?></span></td>
-          <td class="n"><?= h(money($cmp['s'], $cmp['cur'])) ?></td>
+          <td class="n"><?= h(money($cmp['s'], $cfg['ad_cur'])) ?></td>
           <td><select name="map[<?= h($kk) ?>]" style="padding:6px 8px">
             <?php
               $autoLbl = ' (не найдено)';
@@ -1196,14 +1212,13 @@ else: ?>
     <form method="post" class="row">
       <?= csrf_field() ?><input type="hidden" name="a" value="spend_add">
       <input type="date" name="d" value="<?= h(ldate('Y-m-d', time())) ?>" required style="width:auto;padding:9px">
-      <input type="text" name="amount" placeholder="Сумма, напр. 25000" inputmode="decimal" required style="flex:1;min-width:120px">
-      <select name="cur" style="width:auto;padding:9px"><option>KZT</option><option>USD</option><option>RUB</option></select>
+      <input type="text" name="amount" placeholder="Сумма в <?= h($cfg['ad_cur']) ?>, напр. 25.50" inputmode="decimal" required style="flex:1;min-width:120px">
       <input type="text" name="cn" placeholder="Кампания (необязательно)" style="flex:1;min-width:140px">
       <button class="btn">Добавить</button>
     </form>
     <?php if ($manual): ?>
       <table style="margin-top:8px"><?php foreach (array_slice($manual, 0, 15, true) as $key => $row): ?>
-        <tr><td><?= h($row['d']) ?></td><td><?= h($row['cn']) ?><br><span class="muted" style="font-size:11px"><?php foreach ($cfg['projects'] as $pp) if ($pp['id'] === $row['pm']) echo h($pp['name']); ?></span></td><td class="n"><?= h(money($row['s'], $row['cur'])) ?></td>
+        <tr><td><?= h($row['d']) ?></td><td><?= h($row['cn']) ?><br><span class="muted" style="font-size:11px"><?php foreach ($cfg['projects'] as $pp) if ($pp['id'] === $row['pm']) echo h($pp['name']); ?></span></td><td class="n"><?= h(money($row['s'], $cfg['ad_cur'])) ?></td>
         <td class="n"><form method="post" onsubmit="return confirm('Удалить?')"><?= csrf_field() ?><input type="hidden" name="a" value="spend_del"><input type="hidden" name="key" value="<?= h($key) ?>"><button class="btn sm red">✕</button></form></td></tr>
       <?php endforeach; ?></table>
     <?php endif; ?>
