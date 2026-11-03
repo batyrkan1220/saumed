@@ -405,6 +405,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         go_to('tab=projects', 'Проект удалён');
     }
 
+    /* --- Шығын (TikTok / Make) --- */
+    if ($a === 'spend_map') {
+        foreach ((isset($_POST['map']) && is_array($_POST['map']) ? $_POST['map'] : []) as $k => $pid) {
+            $k = (string)$k;
+            if ($pid === '') unset($cfg['spend_map'][$k]);
+            elseif (proj_index($cfg, 'id', $pid) >= 0 || $pid === '-') $cfg['spend_map'][$k] = $pid;
+        }
+        cfg_save($cfg);
+        go_to('tab=settings#spend', 'Привязка кампаний сохранена ✓');
+    }
+    if ($a === 'spend_add') {
+        $d = post('d'); $amt = (float)str_replace([' ', ','], ['', '.'], post('amount'));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || $amt <= 0) go_to('tab=settings#spend', '⚠️ Укажите дату и сумму');
+        $sp = store_read('spend') ?: ['rows' => []];
+        $name = mb_substr(post('cn'), 0, 100) ?: 'Ручной ввод';
+        $key = $d . '|m:' . $P['id'] . ':' . mb_strtolower($name);
+        $sp['rows'][$key] = ['d' => $d, 'ci' => '', 'cn' => $name, 's' => round($amt, 2), 'cur' => post('cur') ?: 'KZT', 'src' => 'manual', 'pm' => $P['id'], 't' => time()];
+        store_write('spend', $sp);
+        go_to('tab=settings#spend', 'Расход добавлен ✓');
+    }
+    if ($a === 'spend_del') {
+        $sp = store_read('spend') ?: ['rows' => []];
+        unset($sp['rows'][post('key')]);
+        store_write('spend', $sp);
+        go_to('tab=settings#spend', 'Удалено');
+    }
+
     /* --- Wazzup24 --- */
     if ($a === 'wz_connect') {
         $key = preg_replace('/[^A-Za-z0-9_\-]/', '', post('wz_key'));
@@ -445,6 +472,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     go_to();
 }
 
+// Шығын: валюта белгісі, кампания → проект
+function money($v, $cur = '') {
+    $sym = ['KZT' => '₸', 'USD' => '$', 'RUB' => '₽', 'EUR' => '€', 'UZS' => 'сум', 'KGS' => 'сом'];
+    $c = isset($sym[strtoupper($cur)]) ? $sym[strtoupper($cur)] : ($cur ?: '₸');
+    return number_format((float)$v, $v < 100 ? 2 : 0, ',', ' ') . ' ' . $c;
+}
+function spend_key($row) { return $row['ci'] !== '' ? $row['ci'] : 'n:' . mb_strtolower($row['cn']); }
+// Кампания ID → проект: соңғы 90 күндегі кірулерден автоматты анықталады
+function spend_auto_map() {
+    $m = [];
+    foreach (load_events(time() - 90 * 86400, time()) as $e) if (!empty($e['ci'])) $m[$e['ci']] = ev_pid($e);
+    return $m;
+}
+function spend_pid($row, $cfg, $auto) {
+    if (!empty($row['pm'])) return $row['pm'];
+    $k = spend_key($row);
+    if (isset($cfg['spend_map'][$k])) return $cfg['spend_map'][$k];
+    if ($row['ci'] !== '' && isset($auto[$row['ci']])) return $auto[$row['ci']];
+    if (count($cfg['projects']) === 1) return $cfg['projects'][0]['id'];
+    return '';
+}
 $dur = function ($sec) {
     if ($sec === null) return '—';
     if ($sec < 60) return $sec . ' сек';
@@ -509,6 +557,13 @@ if ($tab === 'stats'):
     $WZ = !empty($cfg['wz_key']);
     $visits = 0; $clicks = 0; $uv = []; $uc = [];
     $byM = []; $byS = []; $byD = []; $byC = []; $recent = [];
+    // Кампания кілті: ID (utm_id) → атауы (utm_campaign)
+    $cKey = function ($e) {
+        $ci = !empty($e['ci']) ? $e['ci'] : '';
+        $cn = !empty($e['cn']) ? $e['cn'] : (!empty($e['c']) ? $e['c'] : '');
+        if ($ci === '' && $cn === '') return null;
+        return [$ci !== '' ? $ci : 'n:' . mb_strtolower($cn), $cn !== '' ? $cn : 'ID ' . $ci, $ci];
+    };
     $leads = 0; $leadsSite = 0; $replied = 0; $repliedSite = 0; $noReply = 0; $leadList = []; $rsAll = [];
     $chats = null; $skipped = 0;
     $msgN = norm_text($P['message']);
@@ -560,7 +615,7 @@ if ($tab === 'stats'):
             $byM[$mid]['c']++;
             if (!empty($e['o'])) $byM[$mid]['oc']++;
             $byS[$s][1]++; $byD[$dv][1]++;
-            if (!empty($e['c'])) { if (!isset($byC[$e['c']])) $byC[$e['c']] = [0, 0]; $byC[$e['c']][1]++; }
+            if ($ck = $cKey($e)) { if (!isset($byC[$ck[0]])) $byC[$ck[0]] = [0, 0, 'n' => $ck[1], 'ci' => $ck[2]]; $byC[$ck[0]][1]++; }
             if (isset($buckets[$bk])) $buckets[$bk][2]++;
             $recent[] = $e;
         } else {
@@ -573,11 +628,27 @@ if ($tab === 'stats'):
                 $byM[$e['m']]['ov']++;
             }
             $byS[$s][0]++; $byD[$dv][0]++;
-            if (!empty($e['c'])) { if (!isset($byC[$e['c']])) $byC[$e['c']] = [0, 0]; $byC[$e['c']][0]++; }
+            if ($ck = $cKey($e)) { if (!isset($byC[$ck[0]])) $byC[$ck[0]] = [0, 0, 'n' => $ck[1], 'ci' => $ck[2]]; $byC[$ck[0]][0]++; }
             if (isset($buckets[$bk])) $buckets[$bk][1]++;
         }
     }
     $SHOWW = $WZ || $leads;
+    // Расход за период по этому проекту
+    $spRows = (store_read('spend') ?: ['rows' => []])['rows'];
+    $spTotal = 0; $spCur = ''; $spByC = []; $spAuto = null;
+    $dFrom = ldate('Y-m-d', $from); $dTo = ldate('Y-m-d', $to);
+    foreach ($spRows as $row) {
+        if ($row['d'] < $dFrom || $row['d'] > $dTo) continue;
+        if ($spAuto === null) $spAuto = spend_auto_map();
+        if (spend_pid($row, $cfg, $spAuto) !== $P['id']) continue;
+        $spTotal += $row['s']; if (!empty($row['cur'])) $spCur = $row['cur'];
+        $kk = spend_key($row);
+        if (!isset($spByC[$kk])) $spByC[$kk] = ['s' => 0, 'n' => $row['cn'], 'ci' => $row['ci']];
+        $spByC[$kk]['s'] += $row['s'];
+    }
+    foreach ($spByC as $kk => $x) if (!isset($byC[$kk])) $byC[$kk] = [0, 0, 'n' => $x['n'] ?: 'ID ' . $x['ci'], 'ci' => $x['ci']];
+    $HASSP = $spTotal > 0;
+    $cost = function ($n) use ($spTotal, $spCur) { return $n > 0 && $spTotal > 0 ? money($spTotal / $n, $spCur) : '—'; };
     foreach ($P['managers'] as $m) if (isset($byM[$m['id']])) $byM[$m['id']]['n'] = $m['name'];
     uasort($byM, function ($a, $b) { return ($b['w'] * 1000 + $b['c']) - ($a['w'] * 1000 + $a['c']); });
     uasort($byS, function ($a, $b) { return ($b[0] + $b[1]) - ($a[0] + $a[1]); });
@@ -648,6 +719,19 @@ if ($tab === 'stats'):
 <?php endif; ?>
   </div>
 
+<?php if ($HASSP): ?>
+  <div class="grid kpis" style="margin-bottom:16px">
+    <div class="kpi" style="background:#0f172a;color:#fff;border:0"><div class="l" style="color:#cbd5e1">💸 Расход</div><div class="v" style="font-size:24px"><?= h(money($spTotal, $spCur)) ?></div></div>
+    <div class="kpi"><div class="l">Цена клика</div><div class="v" style="font-size:24px"><?= h($cost(count($uc))) ?></div><div class="l">за 1 нажатие WhatsApp</div></div>
+    <?php if ($SHOWW): ?>
+    <div class="kpi" style="border:2px solid #16a34a"><div class="l">⭐ Цена лида</div><div class="v" style="font-size:24px;color:#15803d"><?= h($cost($leadsSite)) ?></div><div class="l">за 1 написавшего с сайта</div></div>
+    <div class="kpi"><div class="l">Цена любого лида</div><div class="v" style="font-size:24px"><?= h($cost($leads)) ?></div><div class="l">все написавшие</div></div>
+    <?php else: ?>
+    <div class="kpi"><div class="l">Цена посетителя</div><div class="v" style="font-size:24px"><?= h($cost(count($uv))) ?></div></div>
+    <a class="kpi" href="?tab=settings" style="text-decoration:none;color:inherit"><div class="l">⭐ Цена лида</div><div class="v" style="font-size:16px">подключите Wazzup →</div></a>
+    <?php endif; ?>
+  </div>
+<?php endif; ?>
 <?php if ($SHOWW): ?>
   <div class="grid kpis" style="margin-bottom:16px">
     <div class="kpi hi" style="background:linear-gradient(135deg,#15803d,#166534)"><div class="l">✍️ Всего написали</div><div class="v"><?= $leads ?></div><div class="l" style="margin-top:2px">на номера менеджеров</div></div>
@@ -738,12 +822,13 @@ if ($tab === 'stats'):
       <?php endforeach; ?></table><?php endif; ?>
     </div>
     <div class="card">
-      <h2>🎯 Кампании (utm_campaign)</h2>
-      <?php if (!$byC): ?><p class="muted">Добавьте к рекламной ссылке <code>?utm_campaign=название</code> — и каждая реклама будет видна здесь отдельно.</p><?php else: ?>
-      <table><tr><th>Кампания</th><th class="n">Посещ.</th><th class="n">Нажат.</th><th class="n">Конв.</th></tr>
-      <?php foreach ($byC as $k => $v): ?>
-        <tr><td><?= h($k) ?></td><td class="n"><?= $v[0] ?></td><td class="n"><b><?= $v[1] ?></b></td><td class="n"><?= $v[0] ? round($v[1] / $v[0] * 100) . '%' : '—' ?></td></tr>
-      <?php endforeach; ?></table><?php endif; ?>
+      <h2>🎯 Кампании</h2>
+      <?php if (!$byC): ?><p class="muted">Добавьте к рекламной ссылке <code>utm_campaign=__CAMPAIGN_NAME__&amp;utm_id=__CAMPAIGN_ID__</code> — и каждая кампания будет видна здесь отдельно.</p><?php else: ?>
+      <div style="overflow-x:auto"><table><tr><th>Кампания</th><th class="n">Посещ.</th><th class="n">Нажат.</th><th class="n">Конв.</th><?php if ($HASSP): ?><th class="n">Расход</th><th class="n">Цена клика</th><?php endif; ?></tr>
+      <?php foreach ($byC as $k => $v): $cs = isset($spByC[$k]) ? $spByC[$k]['s'] : 0; ?>
+        <tr><td><?= h($v['n']) ?><?php if (!empty($v['ci'])): ?><br><span class="muted" style="font-size:11px">ID <?= h($v['ci']) ?></span><?php endif; ?></td><td class="n"><?= $v[0] ?></td><td class="n"><b><?= $v[1] ?></b></td><td class="n"><?= $v[0] ? round($v[1] / $v[0] * 100) . '%' : '—' ?></td>
+        <?php if ($HASSP): ?><td class="n"><?= $cs ? h(money($cs, $spCur)) : '—' ?></td><td class="n"><?= $cs && $v[1] ? h(money($cs / $v[1], $spCur)) : '—' ?></td><?php endif; ?></tr>
+      <?php endforeach; ?></table></div><?php endif; ?>
     </div>
     <div class="card">
       <h2>📱 Устройства</h2>
@@ -1046,6 +1131,84 @@ elseif ($tab === 'projects'):
 <?php
 /* ================= ЖАЛПЫ БАПТАУЛАР ================= */
 else: ?>
+  <div class="card" id="spend">
+    <h2>💸 Расход TikTok (Make.com)</h2>
+    <?php
+      $spAll = store_read('spend') ?: ['rows' => []];
+      $spHook = $base . 'spend.php?k=' . $cfg['spend_secret'];
+      $auto = spend_auto_map();
+      $camps = []; $manual = [];
+      foreach ($spAll['rows'] as $key => $row) {
+          if (($row['src'] ?? '') === 'manual') { $manual[$key] = $row; continue; }
+          $kk = spend_key($row);
+          if (!isset($camps[$kk])) $camps[$kk] = ['n' => $row['cn'], 'ci' => $row['ci'], 's' => 0, 'last' => '', 'cur' => $row['cur']];
+          $camps[$kk]['s'] += $row['s']; $camps[$kk]['last'] = max($camps[$kk]['last'], $row['d']);
+      }
+      krsort($manual);
+    ?>
+    <p class="muted">Make.com каждые несколько часов берёт расход из TikTok Ads и отправляет сюда. В аналитике появятся <b>Расход</b>, <b>Цена клика</b> и <b>Цена лида</b>.</p>
+    <div class="mlink" style="margin:10px 0">
+      <span class="muted">Адрес для Make:</span>
+      <input type="text" readonly value="<?= h($spHook) ?>" onclick="this.select()">
+      <button type="button" class="btn sm gray" onclick="cp(this)">Копировать</button>
+    </div>
+    <p><?= !empty($spAll['last']) ? '<span class="pill on">Данные получены</span> последний раз: <b>' . h(ldate('d.m.Y H:i', $spAll['last'])) . '</b>' : '<span class="pill off">Данных из Make ещё нет</span>' ?></p>
+
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700">📘 Как настроить Make.com (5 минут)</summary>
+      <ol style="margin:10px 0 0 18px;line-height:1.7">
+        <li>Зарегистрируйтесь на <b>make.com</b> → <b>Create a new scenario</b>.</li>
+        <li>Добавьте модуль <b>TikTok Reports → Generate a Report</b>, подключите свой TikTok-аккаунт (Create a connection).</li>
+        <li>Настройки отчёта: рекламный аккаунт; Data level — <b>Campaign</b>; Dimensions — <b>campaign_id</b> и <b>stat_time_day</b>; Metrics — <b>spend</b> и <b>campaign_name</b>; период — <b>последние 2–3 дня</b>.</li>
+        <li>Если отчёт приходит списком — добавьте <b>Iterator</b> по списку строк.</li>
+        <li>Добавьте модуль <b>HTTP → Make a request</b>: URL — адрес выше, Method — <b>POST</b>, Body type — <b>Raw</b>, Content type — <b>JSON</b>, Request content:<br>
+          <code>{"date":"{{stat_time_day}}","campaign_id":"{{campaign_id}}","campaign":"{{campaign_name}}","spend":"{{spend}}"}</code><br>
+          <span class="muted">(вместо {{…}} выберите соответствующие поля из модуля TikTok кликом)</span></li>
+        <li>Расписание сценария: <b>каждые 3–6 часов</b>. Нажмите <b>Run once</b> для проверки — здесь появится «Данные получены».</li>
+      </ol>
+      <p class="muted">Можно отправлять и весь ответ TikTok целиком — система сама найдёт поля spend, campaign_id, campaign_name и stat_time_day. Повторная отправка того же дня не дублирует расход, а обновляет его.</p>
+    </details>
+
+    <?php if ($camps): ?>
+    <h3 class="sec">Кампании из TikTok</h3>
+    <form method="post">
+      <?= csrf_field() ?><input type="hidden" name="a" value="spend_map">
+      <div style="overflow-x:auto"><table><tr><th>Кампания</th><th class="n">Расход (всего)</th><th>Проект</th></tr>
+      <?php foreach ($camps as $kk => $cmp): $autoP = ($cmp['ci'] !== '' && isset($auto[$cmp['ci']])) ? $auto[$cmp['ci']] : ''; $cur = isset($cfg['spend_map'][$kk]) ? $cfg['spend_map'][$kk] : ''; ?>
+        <tr><td><?= h($cmp['n'] ?: '—') ?><br><span class="muted" style="font-size:11px"><?= $cmp['ci'] ? 'ID ' . h($cmp['ci']) . ' · ' : '' ?>до <?= h($cmp['last']) ?></span></td>
+          <td class="n"><?= h(money($cmp['s'], $cmp['cur'])) ?></td>
+          <td><select name="map[<?= h($kk) ?>]" style="padding:6px 8px">
+            <?php
+              $autoLbl = ' (не найдено)';
+              if ($autoP !== '') { foreach ($cfg['projects'] as $pp) if ($pp['id'] === $autoP) $autoLbl = ' → ' . $pp['name']; }
+              elseif (count($cfg['projects']) === 1) $autoLbl = ' → ' . $cfg['projects'][0]['name'];
+            ?>
+            <option value="">Авто<?= h($autoLbl) ?></option>
+            <?php foreach ($cfg['projects'] as $pp): ?><option value="<?= h($pp['id']) ?>" <?= $cur === $pp['id'] ? 'selected' : '' ?>><?= h($pp['name']) ?></option><?php endforeach; ?>
+            <option value="-" <?= $cur === '-' ? 'selected' : '' ?>>Не учитывать</option>
+          </select></td></tr>
+      <?php endforeach; ?></table></div>
+      <p class="muted" style="margin-top:6px">«Авто» — проект определяется по <code>utm_id</code> в ссылке рекламы. Если не определился — выберите проект вручную.</p>
+      <button class="btn sm" style="margin-top:8px">Сохранить привязку</button>
+    </form>
+    <?php endif; ?>
+
+    <h3 class="sec">Ручной ввод расхода — для «<?= h($P['name']) ?>»</h3>
+    <form method="post" class="row">
+      <?= csrf_field() ?><input type="hidden" name="a" value="spend_add">
+      <input type="date" name="d" value="<?= h(ldate('Y-m-d', time())) ?>" required style="width:auto;padding:9px">
+      <input type="text" name="amount" placeholder="Сумма, напр. 25000" inputmode="decimal" required style="flex:1;min-width:120px">
+      <select name="cur" style="width:auto;padding:9px"><option>KZT</option><option>USD</option><option>RUB</option></select>
+      <input type="text" name="cn" placeholder="Кампания (необязательно)" style="flex:1;min-width:140px">
+      <button class="btn">Добавить</button>
+    </form>
+    <?php if ($manual): ?>
+      <table style="margin-top:8px"><?php foreach (array_slice($manual, 0, 15, true) as $key => $row): ?>
+        <tr><td><?= h($row['d']) ?></td><td><?= h($row['cn']) ?><br><span class="muted" style="font-size:11px"><?php foreach ($cfg['projects'] as $pp) if ($pp['id'] === $row['pm']) echo h($pp['name']); ?></span></td><td class="n"><?= h(money($row['s'], $row['cur'])) ?></td>
+        <td class="n"><form method="post" onsubmit="return confirm('Удалить?')"><?= csrf_field() ?><input type="hidden" name="a" value="spend_del"><input type="hidden" name="key" value="<?= h($key) ?>"><button class="btn sm red">✕</button></form></td></tr>
+      <?php endforeach; ?></table>
+    <?php endif; ?>
+  </div>
+
   <div class="card">
     <h2>💬 Wazzup24 — сколько людей реально написали</h2>
     <?php if (!$cfg['wz_key']): ?>

@@ -91,7 +91,12 @@ function cfg() {
     if (!isset($c['password'])) $c['password'] = '';
     if (!isset($c['wz_key'])) $c['wz_key'] = '';
     if (!isset($c['wz_channels'])) $c['wz_channels'] = [];
-    if (empty($c['wz_secret'])) { $c['wz_secret'] = bin2hex(random_bytes(12)); store_write('config', $c); }
+    if (!isset($c['spend_map'])) $c['spend_map'] = [];
+    if (empty($c['wz_secret']) || empty($c['spend_secret'])) {
+        if (empty($c['wz_secret'])) $c['wz_secret'] = bin2hex(random_bytes(12));
+        if (empty($c['spend_secret'])) $c['spend_secret'] = bin2hex(random_bytes(12));
+        store_write('config', $c);
+    }
     foreach ($c['projects'] as $i => $p) $c['projects'][$i] = array_merge(project_default(), $p);
     return $c;
 }
@@ -209,6 +214,8 @@ function next_rr($pid, $n) {
 
 /* ================= Көмекші ================= */
 function clean_id($s) { return substr(preg_replace('/[^a-zA-Z0-9]/', '', (string)$s), 0, 32); }
+function clean_cid($s) { return substr(preg_replace('/\D/', '', (string)$s), 0, 25); }
+function clean_cname($s) { return mb_substr(trim(preg_replace('/[\x00-\x1F<>"]/u', '', (string)$s)), 0, 100); }
 function clean_src($s) { return substr(preg_replace('/[^a-z0-9_.\-]/', '', strtolower((string)$s)), 0, 40); }
 function ua() { return isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : ''; }
 
@@ -424,12 +431,14 @@ main{width:100%;max-width:440px;text-align:center}
   }
   src = src || sg(SS, 'src') || ''; ss(SS, 'src', src);
   var cmp = (q.get('utm_campaign') || sg(SS, 'cmp') || '').toLowerCase(); ss(SS, 'cmp', cmp);
+  var cn = q.get('utm_campaign') || sg(SS, 'cn') || ''; ss(SS, 'cn', cn);           // кампания атауы (түпнұсқа)
+  var ci = (q.get('utm_id') || sg(SS, 'ci') || '').replace(/\D/g, ''); ss(SS, 'ci', ci); // кампания ID
   var mg = (q.get('m') || sg(SS, 'm' + P) || '').replace(/[^a-zA-Z0-9]/g, ''); ss(SS, 'm' + P, mg);
   // Жарнамадан келді ме (таргет): ttclid / fbclid / gclid / yclid / utm_source
   var ad = (q.get('ttclid') || q.get('fbclid') || q.get('gclid') || q.get('yclid') || q.get('utm_source')) ? '1' : (sg(SS, 'ad' + P) || '0');
   ss(SS, 'ad' + P, ad);
   var url = '../go.php?p=' + encodeURIComponent(P) + '&vid=' + encodeURIComponent(vid) + '&src=' + encodeURIComponent(src) +
-            '&cmp=' + encodeURIComponent(cmp) + '&ad=' + ad + (mg ? '&m=' + encodeURIComponent(mg) : '');
+            '&cmp=' + encodeURIComponent(cmp) + '&ci=' + ci + '&cn=' + encodeURIComponent(cn) + '&ad=' + ad + (mg ? '&m=' + encodeURIComponent(mg) : '');
   // Сілтеме бірден ашылады — WhatsApp сенімді ашылуы үшін кешіктірмейміз
   var links = document.querySelectorAll('.js-wa');
   function px() { if (typeof window.__pxClick === 'function') { try { window.__pxClick(); } catch (er) {} } }
@@ -441,7 +450,7 @@ main{width:100%;max-width:440px;text-align:center}
     sent = true;
     try {
       var fd = new FormData();
-      fd.append('p', P); fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg); fd.append('ad', ad);
+      fd.append('p', P); fd.append('vid', vid); fd.append('src', src); fd.append('cmp', cmp); fd.append('m', mg); fd.append('ad', ad); fd.append('ci', ci); fd.append('cn', cn);
       if (navigator.sendBeacon) navigator.sendBeacon('../track.php', fd);
       else fetch('../track.php', { method: 'POST', body: fd, keepalive: true });
     } catch (e) {}

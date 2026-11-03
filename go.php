@@ -40,6 +40,7 @@ if (!$mgr) {
 if (!is_bot() && !is_admin_visitor()) {
     log_event(['t' => time(), 'e' => 'c', 'p' => $pid, 'v' => $vid, 's' => $src, 'c' => $cmp, 'd' => device(),
                'm' => $mgr['id'], 'mn' => $mgr['name'], 'o' => $own,
+               'ci' => clean_cid(isset($_GET['ci']) ? $_GET['ci'] : ''), 'cn' => clean_cname(isset($_GET['cn']) ? $_GET['cn'] : ''),
                'a' => (isset($_GET['ad']) ? $_GET['ad'] === '1' : (bool)preg_match('/ttclid|fbclid|gclid|yclid|utm_source/', isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '')) ? 1 : 0]);
 }
 setcookie($ck, $mgr['id'], time() + 30 * 86400, '/');
