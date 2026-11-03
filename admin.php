@@ -550,7 +550,10 @@ if ($tab === 'stats'):
         if (!isset($byS[$s])) $byS[$s] = [0, 0];
         if (!isset($byD[$dv])) $byD[$dv] = [0, 0];
         if ($isC) {
-            $clicks++; $uc[$vk] = 1;
+            $clicks++;
+            // Бір адам бірнеше рет басса — 1 рет қана есептеледі (бірегей басулар)
+            if (isset($uc[$vk])) continue;
+            $uc[$vk] = 1;
             $mid = !empty($e['m']) ? $e['m'] : '—';
             if (!isset($byM[$mid])) $byM[$mid] = $mInit(isset($e['mn']) ? $e['mn'] : '—');
             $byM[$mid]['c']++;
@@ -560,7 +563,10 @@ if ($tab === 'stats'):
             if (isset($buckets[$bk])) $buckets[$bk][2]++;
             $recent[] = $e;
         } else {
-            $visits++; $uv[$vk] = 1;
+            $visits++;
+            // Бір адам бетті бірнеше рет ашса — 1 рет қана есептеледі (бірегей келушілер)
+            if (isset($uv[$vk])) continue;
+            $uv[$vk] = 1;
             if (!empty($e['m'])) {
                 if (!isset($byM[$e['m']])) $byM[$e['m']] = $mInit($e['m']);
                 $byM[$e['m']]['ov']++;
@@ -634,7 +640,8 @@ if ($tab === 'stats'):
       <div class="st"><div class="l">💬 Получили ответ</div><div class="v"><?= $repliedSite ?></div><div class="s">из написавших с сайта</div></div>
 <?php endif; ?>
     </div>
-    <p class="muted" style="margin-top:10px">📢 <b>Реклама</b> — переход с меткой TikTok (ttclid), Meta (fbclid), Google (gclid) или с UTM-меткой. Ваши собственные заходы из браузера админки и боты не учитываются.</p>
+    <p class="muted" style="margin-top:10px">👤 Все цифры — <b>уникальные люди</b>: если один человек открыл сайт или нажал кнопку несколько раз, он считается один раз.</p>
+    <p class="muted" style="margin-top:4px">📢 <b>Реклама</b> — переход с меткой TikTok (ttclid), Meta (fbclid), Google (gclid) или с UTM-меткой. Ваши собственные заходы из браузера админки и боты не учитываются.</p>
 <?php if (!$SHOWW): ?>
     <p class="muted" style="margin-top:10px">💡 Чтобы видеть, сколько людей реально <b>написали</b> в WhatsApp, <a href="?tab=settings">подключите Wazzup24</a>.</p>
 <?php endif; ?>
@@ -693,7 +700,7 @@ if ($tab === 'stats'):
         <td class="n"><?= $m['ov'] || $m['oc'] ? $m['ov'] . ' / ' . $m['oc'] : '<span class="muted">—</span>' ?></td></tr>
       <?php endforeach; ?>
     </table></div>
-    <p class="muted" style="margin-top:8px"><b>Нажатия</b> — нажали кнопку WhatsApp на сайте и были направлены к этому менеджеру.<?php if ($SHOWW): ?> <b>Написали</b> — все клиенты, реально написавшие на номер менеджера, <b>С сайта</b> — из них написавшие с авто-текстом сайта.<?php endif; ?> <b>Личн. ссылка</b> — зашли / нажали по личной ссылке менеджера.</p>
+    <p class="muted" style="margin-top:8px"><b>Нажатия</b> — уникальные люди, нажавшие кнопку WhatsApp и направленные к этому менеджеру (повторные нажатия одного человека не считаются).<?php if ($SHOWW): ?> <b>Написали</b> — все клиенты, реально написавшие на номер менеджера, <b>С сайта</b> — из них написавшие с авто-текстом сайта.<?php endif; ?> <b>Личн. ссылка</b> — зашли / нажали по личной ссылке менеджера.</p>
     <?php endif; ?>
   </div>
 
@@ -748,7 +755,7 @@ if ($tab === 'stats'):
   </div>
 
   <div class="card">
-    <h2>🕒 Последние нажатия</h2>
+    <h2>🕒 Последние нажатия (уникальные)</h2>
     <?php if (!$recent): ?><p class="muted">За этот период нажатий пока нет</p><?php else: ?>
     <div style="overflow-x:auto"><table><tr><th>Время</th><th>Менеджер</th><th>Источник</th><th>Устройство</th></tr>
     <?php foreach ($recent as $e): $mn = isset($e['mn']) ? $e['mn'] : '—';
