@@ -1046,10 +1046,6 @@ elseif ($tab === 'managers'):
         <div class="num"><?= $i + 1 ?></div>
         <input type="text" name="name" value="<?= h($m['name']) ?>" form="<?= $fid ?>" maxlength="40">
         <input type="tel" name="phone" value="<?= h($m['phone']) ?>" form="<?= $fid ?>">
-        <div class="mmsg">
-          <label style="margin:0 0 4px">💬 Текст в WhatsApp <?= empty($m['msg']) ? '<span class="pill off">общий текст проекта</span>' : '<span class="pill on">свой текст</span>' ?></label>
-          <textarea name="msg" form="<?= $fid ?>" maxlength="500" rows="2" placeholder="Пусто — используется общий текст проекта: «<?= h(mb_substr($P['message'], 0, 80)) ?>»"><?= h(isset($m['msg']) ? $m['msg'] : '') ?></textarea>
-        </div>
         <div class="acts">
           <span class="pill <?= $on ? 'on' : 'off' ?>"><?= $on ? 'Активен' : 'На паузе' ?></span>
           <span class="muted">сегодня: <b><?= isset($todayCl[$m['id']]) ? $todayCl[$m['id']] : 0 ?></b></span>
@@ -1059,6 +1055,10 @@ elseif ($tab === 'managers'):
           <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="down"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm gray" title="Ниже">↓</button></form>
           <a class="btn sm gray" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/<?= h($m['phone']) ?>">WA</a>
           <form method="post" onsubmit="return confirm('<?= h($m['name']) ?> — удалить?')"><?= csrf_field() ?><input type="hidden" name="a" value="del"><input type="hidden" name="id" value="<?= h($m['id']) ?>"><button class="btn sm red">Удалить</button></form>
+        </div>
+        <div class="mmsg">
+          <label style="margin:0 0 4px">💬 Текст в WhatsApp <?= empty($m['msg']) ? '<span class="pill off">общий текст проекта</span>' : '<span class="pill on">свой текст</span>' ?></label>
+          <textarea name="msg" form="<?= $fid ?>" maxlength="500" rows="2" placeholder="Пусто — используется общий текст проекта: «<?= h(mb_substr($P['message'], 0, 80)) ?>»"><?= h(isset($m['msg']) ? $m['msg'] : '') ?></textarea>
         </div>
         <div class="mlink">
           <span class="muted">🔗 Личная ссылка:</span>
