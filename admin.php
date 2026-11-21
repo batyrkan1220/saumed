@@ -28,7 +28,7 @@ function head_html($title) { ?>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title><?= h($title) ?></title>
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
@@ -90,6 +90,59 @@ h2{font-size:18px;margin:0 0 12px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:50;transition:transform .3s,opacity .3s,visibility .3s;box-shadow:0 10px 30px rgba(0,0,0,.25);width:max-content;max-width:92vw;opacity:0;visibility:hidden;pointer-events:none}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .toast:empty{display:none}
+/* ---------- Мобильная версия ---------- */
+.m-only,.m-only-b,.pcm{display:none}
+.tabs .ic{position:relative}
+.bdg{position:absolute;top:-6px;right:-12px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 5px;line-height:1.3}
+.rngf{gap:6px;align-items:center;flex-wrap:wrap;margin:-6px 0 14px}
+.more{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.more a{display:flex;align-items:center;gap:10px;padding:14px;border-radius:12px;background:#f8fafc;border:1px solid var(--b);text-decoration:none;color:var(--t);font-weight:700}
+.more a span{font-size:20px}
+.top{padding-top:env(safe-area-inset-top)}
+@media(max-width:820px){
+  body{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+  .m-hide{display:none!important}
+  .m-only{display:inline}.m-only-b{display:block}
+  .top-in{padding:8px 12px;gap:8px;flex-wrap:nowrap}
+  .psw{flex-wrap:nowrap;flex:1;min-width:0}
+  .psw form{flex:1;min-width:0}
+  .psw select{max-width:none;width:100%;font-size:15px}
+  .live{padding:5px 8px}
+  /* Төменгі мәзір */
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;background:rgba(255,255,255,.97);border-top:1px solid var(--b);
+        display:grid;grid-template-columns:repeat(5,1fr);gap:0;padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(15,23,42,.06)}
+  .tabs a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 2px;border-radius:12px;font-size:11px;font-weight:700;color:#64748b}
+  .tabs a .ic{font-size:21px;line-height:1}
+  .tabs a.on{background:transparent;color:#15803d}
+  .tabs a.on .ic{transform:scale(1.08)}
+  .tabs a.on .tx{color:#15803d}
+  .wrap{padding:12px 12px 24px}
+  .card{padding:14px;border-radius:14px;margin-bottom:12px}
+  h2{font-size:17px}
+  /* iPhone фокуста үлкейтпеуі үшін — 16px */
+  input[type=text],input[type=password],input[type=tel],input[type=date],textarea,select{font-size:16px}
+  /* Кезең таңдау — бір жолда, жылжымалы */
+  .ranges{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  .ranges::-webkit-scrollbar{display:none}
+  .ranges a{white-space:nowrap;flex-shrink:0}
+  .ranges .muted{white-space:nowrap}
+  /* Кестелер — көлденең жылжиды */
+  .card{overflow-x:auto}
+  th,td{padding:8px 6px}
+  /* Воронка 2×2, бағыттамасыз */
+  .fun{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+  .fun .ar{display:none!important}
+  .pcm{display:inline;font-size:13px;font-weight:800;color:#16a34a;vertical-align:middle}
+  .fun .st.hi .pcm{color:#bbf7d0}
+  .fun .st{min-width:0!important;padding:10px 12px}
+  .fun .st .v{font-size:26px!important}
+  .kpi{padding:12px}
+  .kpi .v{font-size:24px}
+  /* Чаттар */
+  .msgs{height:calc(100dvh - 290px - env(safe-area-inset-bottom))}
+  .clist{max-height:none}
+  .toast{bottom:calc(80px + env(safe-area-inset-bottom))}
+}
 .fun{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap}
 .fun .st{flex:1;min-width:130px;background:#f8fafc;border:1px solid var(--b);border-radius:14px;padding:12px 14px}
 .fun .st.hi{background:linear-gradient(135deg,#15803d,#166534);color:#fff;border:0}
@@ -137,6 +190,9 @@ label{display:block;font-weight:600;font-size:13px;margin:10px 0 5px}
 .mg.off .num{background:#f1f5f9;color:var(--m)}
 .mg .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:700px){.mg{grid-template-columns:34px 1fr}.mg .acts{grid-column:1/-1;justify-content:flex-start}.mg input[name=phone]{grid-column:2}}
+.mmsg{grid-column:2/-1}
+.mmsg textarea{min-height:54px;font-size:14px}
+@media(max-width:700px){.mmsg{grid-column:1/-1}}
 .mlink{grid-column:2/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .mlink input{flex:1;min-width:200px;padding:7px 10px;font-size:13px;background:#f8fafc;color:#0d7a37}
 @media(max-width:700px){.mlink{grid-column:1/-1}}
@@ -304,7 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max = 0;
         foreach ($M as $m) $max = max($max, (int)substr($m['id'], 1));
         $name = post('name') ?: ((count($M) + 1) . '-менеджер');
-        $M[] = ['id' => 'm' . ($max + 1), 'name' => mb_substr($name, 0, 40), 'phone' => $phone, 'active' => true];
+        $M[] = ['id' => 'm' . ($max + 1), 'name' => mb_substr($name, 0, 40), 'phone' => $phone, 'active' => true, 'msg' => mb_substr(post('msg'), 0, 500)];
         cfg_save($cfg);
         go_to('tab=managers', 'Менеджер добавлен ✓');
     }
@@ -313,6 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$phone) go_to('tab=managers', '⚠️ Неверный номер');
         $M[$idx]['name'] = mb_substr(post('name') ?: $M[$idx]['name'], 0, 40);
         $M[$idx]['phone'] = $phone;
+        $M[$idx]['msg'] = mb_substr(post('msg'), 0, 500);
         cfg_save($cfg);
         go_to('tab=managers', 'Сохранено ✓');
     }
@@ -523,17 +580,17 @@ head_html('Админка — ' . $P['name']);
         <?php foreach ($cfg['projects'] as $p): ?><option value="<?= h($p['id']) ?>" <?= $p['id'] === $P['id'] ? 'selected' : '' ?>><?= h($p['name']) ?></option><?php endforeach; ?>
       </select>
     </form>
-    <a class="btn sm gray" style="text-decoration:none" href="?tab=projects">＋ Проект</a>
+    <a class="btn sm gray" style="text-decoration:none" href="?tab=projects" title="Новый проект">＋<span class="m-hide"> Проект</span></a>
   </div>
   <nav class="tabs">
-    <a href="?tab=stats" class="<?= $tab === 'stats' ? 'on' : '' ?>">📊 Аналитика</a>
-    <a href="?tab=chats" class="<?= $tab === 'chats' ? 'on' : '' ?>">💬 Чаты<?php $wn = 0; foreach (wz_chats() as $x) if ((isset($x['p']) ? $x['p'] : '') === $P['id'] && isset($x['ld']) && $x['ld'] === 'in') $wn++; if ($wn): ?> <span class="pill" style="background:#dc2626;color:#fff;padding:1px 7px"><?= $wn ?></span><?php endif; ?></a>
-    <a href="?tab=managers" class="<?= $tab === 'managers' ? 'on' : '' ?>">👥 Менеджеры</a>
-    <a href="?tab=site" class="<?= $tab === 'site' ? 'on' : '' ?>">✏️ Сайт</a>
-    <a href="?tab=projects" class="<?= $tab === 'projects' ? 'on' : '' ?>">📁 Проекты</a>
-    <a href="?tab=settings" class="<?= $tab === 'settings' ? 'on' : '' ?>">⚙️</a>
-    <a href="<?= h($land) ?>" target="_blank">🌐</a>
-    <a href="?logout=1" class="out">Выйти</a>
+    <a href="?tab=stats" class="<?= $tab === 'stats' ? 'on' : '' ?>"><span class="ic">📊</span><span class="tx">Аналитика</span></a>
+    <a href="?tab=chats" class="<?= $tab === 'chats' ? 'on' : '' ?>"><span class="ic">💬<?php $wn = 0; foreach (wz_chats() as $x) if ((isset($x['p']) ? $x['p'] : '') === $P['id'] && isset($x['ld']) && $x['ld'] === 'in') $wn++; if ($wn): ?><b class="bdg"><?= $wn ?></b><?php endif; ?></span><span class="tx">Чаты</span></a>
+    <a href="?tab=managers" class="<?= $tab === 'managers' ? 'on' : '' ?>"><span class="ic">👥</span><span class="tx">Менеджеры</span></a>
+    <a href="?tab=site" class="<?= $tab === 'site' ? 'on' : '' ?>"><span class="ic">✏️</span><span class="tx">Сайт</span></a>
+    <a href="?tab=projects" class="m-hide <?= $tab === 'projects' ? 'on' : '' ?>"><span class="ic">📁</span><span class="tx">Проекты</span></a>
+    <a href="?tab=settings" class="<?= $tab === 'settings' ? 'on' : '' ?>"><span class="ic">⚙️</span><span class="tx m-only">Ещё</span></a>
+    <a href="<?= h($land) ?>" target="_blank" class="m-hide"><span class="ic">🌐</span></a>
+    <a href="?logout=1" class="out m-hide"><span class="tx">Выйти</span></a>
   </nav>
 </div></div>
 <div class="wrap">
@@ -574,12 +631,10 @@ if ($tab === 'stats'):
     };
     $leads = 0; $leadsSite = 0; $replied = 0; $repliedSite = 0; $noReply = 0; $leadList = []; $rsAll = [];
     $chats = null; $skipped = 0;
-    $msgN = norm_text($P['message']);
-    // Клиент сайттың автоматты мәтінімен жазды ма → «сайттан келген»
-    $isSite = function ($e) use ($msgN) {
+    // Клиент сайттың автоматты мәтінімен жазды ма (проект немесе менеджер мәтіні) → «сайттан келген»
+    $isSite = function ($e) use ($P) {
         if (!empty($e['st'])) return true;
-        $t = norm_text(isset($e['tx']) ? $e['tx'] : '');
-        return $msgN !== '' && $t !== '' && (strpos($t, $msgN) === 0 || strpos($msgN, $t) === 0);
+        return text_is_site(isset($e['tx']) ? $e['tx'] : '', $P);
     };
     $mInit = function ($n) { return ['n' => $n, 'c' => 0, 'ov' => 0, 'oc' => 0, 'w' => 0, 'ws' => 0, 'nr' => 0, 'rs' => []]; };
     $hourly = ($to - $from) <= 86400;
@@ -691,14 +746,15 @@ if ($tab === 'stats'):
     <a href="?tab=stats&r=7" class="<?= $qs('7') ?>">7 дней</a>
     <a href="?tab=stats&r=30" class="<?= $qs('30') ?>">30 дней</a>
     <a href="?tab=stats&r=all" class="<?= $qs('all') ?>">Всё время</a>
-    <form method="get">
-      <input type="hidden" name="tab" value="stats"><input type="hidden" name="r" value="custom">
-      <input type="date" name="from" value="<?= h(ldate('Y-m-d', $from)) ?>">
-      <span class="muted">—</span>
-      <input type="date" name="to" value="<?= h(ldate('Y-m-d', $to)) ?>">
-      <button class="btn sm gray">Показать</button>
-    </form>
+    <a href="#" class="<?= $qs('custom') ?>" onclick="var f=document.getElementById('rng');f.style.display=f.style.display==='flex'?'none':'flex';return false">📅</a>
   </div>
+  <form method="get" id="rng" class="rngf" style="display:<?= $r === 'custom' ? 'flex' : 'none' ?>">
+    <input type="hidden" name="tab" value="stats"><input type="hidden" name="r" value="custom">
+    <input type="date" name="from" value="<?= h(ldate('Y-m-d', $from)) ?>">
+    <span class="muted">—</span>
+    <input type="date" name="to" value="<?= h(ldate('Y-m-d', $to)) ?>">
+    <button class="btn sm gray">Показать</button>
+  </form>
 
   <div class="ranges" style="margin-top:-6px">
     <a href="?<?= h($keep) ?>&tr=ad" class="<?= $TR === 'ad' ? 'on' : '' ?>">📢 Только реклама</a>
@@ -712,12 +768,12 @@ if ($tab === 'stats'):
     <div class="fun">
       <div class="st"><div class="l">👀 Зашли на сайт</div><div class="v"><?= count($uv) ?></div><div class="s"><?= $visits ?> открытий</div></div>
       <div class="ar">→<b><?= $pct(count($uc), count($uv)) ?></b></div>
-      <div class="st"><div class="l">👆 Нажали WhatsApp</div><div class="v"><?= count($uc) ?></div><div class="s"><?= $clicks ?> нажатий</div></div>
+      <div class="st"><div class="l">👆 Нажали WhatsApp</div><div class="v"><?= count($uc) ?> <span class="pcm"><?= $pct(count($uc), count($uv)) ?></span></div><div class="s"><?= $clicks ?> нажатий</div></div>
 <?php if ($SHOWW): ?>
       <div class="ar">→<b><?= $pct($leadsSite, count($uc)) ?></b></div>
-      <div class="st hi"><div class="l">✍️ Написали с сайта</div><div class="v"><?= $leadsSite ?></div><div class="s">с авто-текстом</div></div>
+      <div class="st hi"><div class="l">✍️ Написали с сайта</div><div class="v"><?= $leadsSite ?> <span class="pcm"><?= $pct($leadsSite, count($uc)) ?></span></div><div class="s">с авто-текстом</div></div>
       <div class="ar">→<b><?= $pct($repliedSite, $leadsSite) ?></b></div>
-      <div class="st"><div class="l">💬 Получили ответ</div><div class="v"><?= $repliedSite ?></div><div class="s">из написавших с сайта</div></div>
+      <div class="st"><div class="l">💬 Получили ответ</div><div class="v"><?= $repliedSite ?> <span class="pcm"><?= $pct($repliedSite, $leadsSite) ?></span></div><div class="s">из написавших с сайта</div></div>
 <?php endif; ?>
     </div>
     <p class="muted" style="margin-top:10px">👤 Все цифры — <b>уникальные люди</b>: если один человек открыл сайт или нажал кнопку несколько раз, он считается один раз.</p>
@@ -972,6 +1028,7 @@ elseif ($tab === 'managers'):
       <?= csrf_field() ?><input type="hidden" name="a" value="add">
       <input type="text" name="name" placeholder="<?= count($P['managers']) + 1 ?>-менеджер (имя)" style="flex:1;min-width:160px" maxlength="40">
       <input type="tel" name="phone" placeholder="Номер WhatsApp: 87051234567" required style="flex:1;min-width:180px">
+      <textarea name="msg" maxlength="500" rows="2" style="flex-basis:100%;min-height:54px" placeholder="Текст в WhatsApp для этого менеджера (необязательно). Пусто — общий текст проекта: «<?= h(mb_substr($P['message'], 0, 60)) ?>»"></textarea>
       <button class="btn">Добавить</button>
     </form>
   </div>
@@ -989,6 +1046,10 @@ elseif ($tab === 'managers'):
         <div class="num"><?= $i + 1 ?></div>
         <input type="text" name="name" value="<?= h($m['name']) ?>" form="<?= $fid ?>" maxlength="40">
         <input type="tel" name="phone" value="<?= h($m['phone']) ?>" form="<?= $fid ?>">
+        <div class="mmsg">
+          <label style="margin:0 0 4px">💬 Текст в WhatsApp <?= empty($m['msg']) ? '<span class="pill off">общий текст проекта</span>' : '<span class="pill on">свой текст</span>' ?></label>
+          <textarea name="msg" form="<?= $fid ?>" maxlength="500" rows="2" placeholder="Пусто — используется общий текст проекта: «<?= h(mb_substr($P['message'], 0, 80)) ?>»"><?= h(isset($m['msg']) ? $m['msg'] : '') ?></textarea>
+        </div>
         <div class="acts">
           <span class="pill <?= $on ? 'on' : 'off' ?>"><?= $on ? 'Активен' : 'На паузе' ?></span>
           <span class="muted">сегодня: <b><?= isset($todayCl[$m['id']]) ? $todayCl[$m['id']] : 0 ?></b></span>
@@ -1056,6 +1117,7 @@ elseif ($tab === 'site'): ?>
       <h3 class="sec">WhatsApp</h3>
       <label>Текст, который автоматически подставится клиенту в WhatsApp</label>
       <textarea name="message" maxlength="500"><?= h($P['message']) ?></textarea>
+      <p class="muted">Это общий текст. Для отдельного менеджера можно задать свой текст во вкладке «Менеджеры».</p>
       <label>Распределение заявок</label>
       <label class="radio"><input type="radio" name="mode" value="rr" <?= $P['mode'] !== 'random' ? 'checked' : '' ?>> <span><b>По очереди</b> — 1, 2, 3, снова 1…</span></label>
       <label class="radio"><input type="radio" name="mode" value="random" <?= $P['mode'] === 'random' ? 'checked' : '' ?>> <span><b>Случайно</b></span></label>
@@ -1139,6 +1201,15 @@ elseif ($tab === 'projects'):
 <?php
 /* ================= ЖАЛПЫ БАПТАУЛАР ================= */
 else: ?>
+  <div class="card m-only-b">
+    <div class="more">
+      <a href="?tab=projects"><span>📁</span>Проекты</a>
+      <a href="<?= h($land) ?>" target="_blank"><span>🌐</span>Открыть сайт</a>
+      <a href="#spend"><span>💸</span>Расход</a>
+      <a href="#wz"><span>💬</span>Wazzup</a>
+      <a href="?logout=1" style="color:#dc2626"><span>🚪</span>Выйти</a>
+    </div>
+  </div>
   <div class="card" id="spend">
     <h2>💸 Расход TikTok (Make.com)</h2>
     <?php
@@ -1224,7 +1295,7 @@ else: ?>
     <?php endif; ?>
   </div>
 
-  <div class="card">
+  <div class="card" id="wz">
     <h2>💬 Wazzup24 — сколько людей реально написали</h2>
     <?php if (!$cfg['wz_key']): ?>
       <p class="muted">После подключения Wazzup в статистике видно, кто <b>реально написал</b> в WhatsApp (а не только нажал кнопку), его номер и за сколько менеджер ответил.</p>

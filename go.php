@@ -45,5 +45,5 @@ if (!is_bot() && !is_admin_visitor()) {
 }
 setcookie($ck, $mgr['id'], time() + 30 * 86400, '/');
 
-header('Location: https://wa.me/' . $mgr['phone'] . '?text=' . rawurlencode($P['message']), true, 302);
+header('Location: https://wa.me/' . $mgr['phone'] . '?text=' . rawurlencode(mgr_message($P, $mgr)), true, 302);
 exit;

@@ -533,6 +533,22 @@ function wz_chats() { $d = store_read('wz-chats'); return $d ?: []; }
 function norm_text($s) { return mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$s))); }
 
 // Хабарламаның қай проект пен менеджерге тиесілі екенін анықтау
+// Менеджерге арналған WhatsApp мәтіні: жеке мәтін бос болса — проекттің жалпы мәтіні
+function mgr_message($P, $m) { return (isset($m['msg']) && trim($m['msg']) !== '') ? $m['msg'] : $P['message']; }
+
+// Клиенттің хабарламасы сайттың автоматты мәтінімен басталды ма (проект немесе кез келген менеджер мәтіні)
+function text_is_site($text, $P) {
+    $t = norm_text($text);
+    if ($t === '') return false;
+    $list = [$P['message']];
+    foreach ($P['managers'] as $m) if (!empty($m['msg'])) $list[] = $m['msg'];
+    foreach ($list as $msg) {
+        $msg = norm_text($msg);
+        if ($msg !== '' && (strpos($t, $msg) === 0 || strpos($msg, $t) === 0)) return true;
+    }
+    return false;
+}
+
 function wz_route($c, $phone, $text) {
     $t = norm_text($text);
     $cands = [];
@@ -542,8 +558,10 @@ function wz_route($c, $phone, $text) {
     if (!$cands) return [null, null];
     // Клиент автоматты мәтінмен жазса — проект нақты анықталады
     if ($t !== '') foreach ($cands as $pm) {
-        $msg = norm_text($pm[0]['message']);
-        if ($msg !== '' && (strpos($t, $msg) === 0 || strpos($msg, $t) === 0)) return $pm;
+        foreach ([mgr_message($pm[0], $pm[1]), $pm[0]['message']] as $msg) {
+            $msg = norm_text($msg);
+            if ($msg !== '' && (strpos($t, $msg) === 0 || strpos($msg, $t) === 0)) return $pm;
+        }
     }
     return $cands[0];
 }

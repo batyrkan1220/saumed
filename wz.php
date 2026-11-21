@@ -81,8 +81,7 @@ foreach ($body['messages'] as $msg) {
         // Клиент алғаш рет жазды — нақты өтінім
         $P = null; foreach ($c['projects'] as $pp) if ($pp['id'] === $pid) $P = $pp;
         $M = null; if ($P) foreach ($P['managers'] as $mm) if ($mm['id'] === (isset($chat['m']) ? $chat['m'] : '')) $M = $mm;
-        $tn = norm_text($text); $mn0 = norm_text($P ? $P['message'] : '');
-        $st = ($mn0 !== '' && $tn !== '' && (strpos($tn, $mn0) === 0 || strpos($mn0, $tn) === 0)) ? 1 : 0;   // сайттан (автоматты мәтін)
+        $st = ($P && text_is_site($text, $P)) ? 1 : 0;   // сайттан (проект немесе менеджер мәтіні)
         log_event(['t' => $now, 'e' => 'w', 'p' => $pid, 'st' => $st, 'm' => $M ? $M['id'] : '', 'mn' => $M ? $M['name'] : $phone,
                    'cl' => $client, 'tx' => mb_substr($text, 0, 60), 'ck' => $key]);
     }
