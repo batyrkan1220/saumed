@@ -4,23 +4,37 @@ require __DIR__ . '/lib.php';
 nocache();
 header('X-Robots-Tag: noindex, nofollow');
 
+// Сессиялар өз қорғалған папкамызда сақталады — хостинг оларды 24 минут сайын өшіре алмайды
+ensure_data();
+if (!is_dir(DATA . '/sess')) @mkdir(DATA . '/sess', 0700);
+if (is_dir(DATA . '/sess') && is_writable(DATA . '/sess')) session_save_path(DATA . '/sess');
 session_name('adm');
 ini_set('session.gc_maxlifetime', (string)(30 * 86400));
+ini_set('session.gc_probability', '1');
+ini_set('session.gc_divisor', '1000');
 session_set_cookie_params(30 * 86400, '/', '', !empty($_SERVER['HTTPS']), true);
 session_start();
 
-ensure_data();
 $cfg = cfg();
-if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
-$CSRF = $_SESSION['csrf'];
+// Қорғаныс коды сессияға тәуелсіз: сессия жоғалса да форма жарамды болып қалады
+$CSRF = hash_hmac('sha256', 'csrf|v2', $cfg['password'] . '|' . $cfg['wz_secret']);
 
 function go_to($q = '', $msg = '') {
+    global $P;
     if ($msg !== '') $_SESSION['flash'] = $msg;
+    // Ағымдағы проект сілтемеде қалады (сессия жоғалса да басқа проектке ауыспайды)
+    if (!empty($P['id']) && strpos($q, 'p=') !== 0 && strpos($q, '&p=') === false) {
+        $hash = ''; if (($h = strpos($q, '#')) !== false) { $hash = substr($q, $h); $q = substr($q, 0, $h); }
+        $q = ($q !== '' ? $q . '&' : '') . 'p=' . rawurlencode($P['id']) . $hash;
+    }
     header('Location: admin.php' . ($q ? '?' . $q : ''));
     exit;
 }
 function post($k, $d = '') { return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d; }
-function csrf_field() { global $CSRF; return '<input type="hidden" name="csrf" value="' . h($CSRF) . '">'; }
+function csrf_field() {
+    global $CSRF, $P;
+    return '<input type="hidden" name="csrf" value="' . h($CSRF) . '">' . (!empty($P['id']) ? '<input type="hidden" name="pid" value="' . h($P['id']) . '">' : '');
+}
 
 /* ---------------- HTML бастамасы / соңы ---------------- */
 function head_html($title) { ?>
@@ -335,9 +349,16 @@ if (isset($_GET['tr'])) $_SESSION['tr'] = $_GET['tr'] === 'all' ? 'all' : 'ad';
 $TR = isset($_SESSION['tr']) ? $_SESSION['tr'] : 'ad';
 
 /* ---------------- Ағымдағы проект ---------------- */
-if (isset($_GET['p']) && proj_index($cfg, 'id', $_GET['p']) >= 0) $_SESSION['p'] = $_GET['p'];
-$PI = proj_index($cfg, 'id', isset($_SESSION['p']) ? $_SESSION['p'] : '');
+// Реті: форма жіберген проект → сілтемедегі ?p= → сессия → cookie → бірінші проект
+$want = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pid'])) $want = (string)$_POST['pid'];
+elseif (isset($_GET['p'])) $want = (string)$_GET['p'];
+elseif (isset($_SESSION['p'])) $want = (string)$_SESSION['p'];
+elseif (isset($_COOKIE['admp'])) $want = (string)$_COOKIE['admp'];
+$PI = proj_index($cfg, 'id', $want);
 if ($PI < 0) $PI = 0;
+$_SESSION['p'] = $cfg['projects'][$PI]['id'];
+if (!isset($_COOKIE['admp']) || $_COOKIE['admp'] !== $_SESSION['p']) setcookie('admp', $_SESSION['p'], time() + 365 * 86400, '/');
 $P = $cfg['projects'][$PI];
 
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') || (isset($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] === 'https') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
